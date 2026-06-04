@@ -642,12 +642,11 @@ int main(int argc, char** argv)
             }
             else if(isNumber(argv[4])) options.xStep=static_cast<cpp_dec_float_100>(argv[4]);
             else {std::cerr<<"\nYou did not enter a number\n"; return 0;}
-            
             if(options.xMin>=options.xMax) {std::cerr<<"\nInvalid range\n"; return 0;}
             if(options.xMax-options.xMin>options.xStep*1000) {std::cerr<<"\nToo many calculations requested\n"; return 0;}
+            
         }
-        else std::cerr<<"\nIncluded variable but did not specify all of the following: min, max, step/graphing(g or y (close zoom))\n"; return 0;
-
+        else {std::cerr<<"\nIncluded variable but did not specify all of the following: min, max, step/graphing(g or y (close zoom))\n"; return 0;}
     }
     skipNonFileArgs:
     bool quit{};
@@ -700,7 +699,7 @@ int main(int argc, char** argv)
             equation="";
         }
     }
-    if(!quit) mainLoop(options, passedInAsArg, false, equation, resultHistory);
+    if(quit==false) mainLoop(options, passedInAsArg, false, equation, resultHistory);
 
     std::cout<<'\n';
     return 0;
@@ -2293,8 +2292,8 @@ bool isNumber(const std::string &input)
     if(input=="e") return false;
     for(size_t i{}; i<input.length(); i++)
     {
-        if((seenMinus && input.at(i)=='-')||(i>0 && input.at(i)=='-')) return false;
-        if(input.at(0)=='-' && input.length()>1)
+        if((seenMinus && input.at(i)=='-')||(i>0 && input.at(i)=='-' && input.at(i-1)!='e')) return false;
+        if(input.at(0)=='-' && i==0 && input.length()>1)
         {
             seenMinus=true;
             continue;
