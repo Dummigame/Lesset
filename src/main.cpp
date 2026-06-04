@@ -796,6 +796,30 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
         if(replaceAliases(equation))
         {
             equation.clear();
+            if(passedCalculationsFile) return false;
+            continue;
+        }
+
+        if(equation.find("constant")!=std::string::npos)
+        {
+            std::cout<<"\nConstants:\n";
+            for(size_t i{}; i<calculator::userConstants.size(); i++)
+            {
+                std::cout<<calculator::userConstants.at(i).name<<" = "<<calculator::userConstants.at(i).value<<'\n';
+            }
+            equation.clear();
+            if(passedCalculationsFile) return false;
+            continue;
+        }
+        if(equation.find("alias")!=std::string::npos)
+        {
+            std::cout<<"\nAliases:\n";
+            for(size_t i{}; i<calculator::userAliases.size(); i++)
+            {
+                std::cout<<calculator::userAliases.at(i).name<<" = "<<calculator::userAliases.at(i).value<<'\n';
+            }
+            equation.clear();
+            if(passedCalculationsFile) return false;
             continue;
         }
 
@@ -842,14 +866,54 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                 }
                 size_t j{};
                 std::vector<token> assignmentTokens;
+                bool invalidName{};
+                if(tokens.at(i).value().find("rndint") ||
+                    tokens.at(i).value().find("rnd") ||
+                    tokens.at(i).value().find("pi")  || 
+                    tokens.at(i).value().find("inf") ||
+                    tokens.at(i).value().find("prc") ||
+                    tokens.at(i).value().find("ppc") ||
+                    tokens.at(i).value().find("ppm") ||
+                    tokens.at(i).value().find("ppb") ||
+                    tokens.at(i).value().find("ppt") ||
+                    tokens.at(i).value().find("rad") ||
+                    tokens.at(i).value().find("deg") ||
+                    tokens.at(i).value().find("drg") ||
+                    tokens.at(i).value().find("dgr") ||
+                    tokens.at(i).value().find("tau") ||
+                    tokens.at(i).value().find("phi") ||
+                    tokens.at(i).value().find("eul") ||
+                    tokens.at(i).value().find("H0") ||
+                    tokens.at(i).value().find("E0") ||
+                    tokens.at(i).value().find("Z0") ||
+                    tokens.at(i).value().find("U0") ||
+                    tokens.at(i).value().find("me")    ||
+                    tokens.at(i).value().find("ma") ||
+                    tokens.at(i).value().find("ec") ||
+                    tokens.at(i).value().find("Na") ||
+                    tokens.at(i).value().find('e')  ||
+                    tokens.at(i).value().find('a')  ||
+                    tokens.at(i).value().find('c')  ||
+                    tokens.at(i).value().find('G')  ||
+                    tokens.at(i).value().find('g')  ||
+                    tokens.at(i).value().find('h')  ||
+                    tokens.at(i).value().find('k')  ||
+                    tokens.at(i).value().find('R')  ||
+                    tokens.at(i).value().find('o')) invalidName=true;
+                if(invalidName || tokens.at(i).value().find("constant")!=std::string::npos || tokens.at(i).value().find("alias")!=std::string::npos)
+                {
+                    std::cerr<<"Forbidden name\n\n";
+                    tokens.clear();
+                    invalidName=true;
+                    break;
+                }
 
                 std::vector<token> nameCheckTokens{getTokens(tokens.at(i).value().substr(3,tokens.at(i).value().length()-4))};
-                bool invalidName{};
                 for(size_t h{}; h<nameCheckTokens.size(); h++)
                 {
                     if(nameCheckTokens.at(h).typeCategory()==tokenCategory_t::FUNCTION || nameCheckTokens.at(h).typeCategory()==tokenCategory_t::OPERATOR || nameCheckTokens.at(h).type()==token_t::NUMBER)
                     {
-                        std::cerr<<"Invalid name\n\n";
+                        std::cerr<<"Forbidden name\n\n";
                         tokens.clear();
                         invalidName=true;
                         break;
@@ -1109,7 +1173,8 @@ void displayHelp(char arg)
         "    sinh, cosh, tanh, sech, cosech, coth, arcsinh, arccosh, arctanh, arcsech, arccosech, arccoth\n"<<
         "    floor, ceil, round, abs, ln, sign\n\n"<<
         "    You may define your own constants using the following syntax: let<name>=<expr>\n"<<
-        "    You can also define aliases using the following syntax: alias<name>=<expr>\n\n";
+        "    You can also define aliases using the following syntax: alias<name>=<expr>\n\n"<<
+        "    You can view your currently defined aliases and constants by typing \"constant\" or \"alias\"\n";
 
     if(arg=='a' || arg=='c')
         std::cout<<"\nConstants:"<<
@@ -1643,7 +1708,8 @@ T calculation(std::vector<token> tokens, const T xValue, const bool resetInvalid
     if(resetInvalid) invalidExpressionSeen=false;
     if(tokens.size()==0) return 0;
     std::ostringstream resultAsOSStream;
-    resultAsOSStream.precision(100);
+    if(std::is_same_v<T,cpp_dec_float_100>) resultAsOSStream.precision(100);
+    else resultAsOSStream.precision(15);
 
     for(size_t i{}; i<tokens.size(); i++)
     {

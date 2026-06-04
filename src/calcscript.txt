@@ -25,6 +25,9 @@ hist
 
 let constone = 4
 let consttwo = 7
-set macro = sin(constone)*cos(consttwo) # By using previously declared constants, you can create macros that "take arguments"
+set macro = sin(constone)cos(consttwo) # By using previously declared constants, you can create macros that "take arguments"
 #                                         as in they use these constants that you can change at runtime
 #                                         You can think about ways to use this yourself :)
+
+alias
+constant
