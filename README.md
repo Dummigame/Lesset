@@ -1,6 +1,6 @@
 # Lesset
 
-A terminal calculator written in (very slow) C++ that supports basic scripting, with some rather intense feature creep.For prior versions, check my repo MiniProjects.
+A terminal calculator written in (very slow) C++ that supports basic scripting, with some rather intense feature creep. For prior versions, check my repo MiniProjects.
 
 <img src="/Assets/graph.png" height="75%" width="75%">
 
