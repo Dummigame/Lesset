@@ -1,0 +1,25 @@
+# The syntax of the calculation file is extremely simple.
+
+# If you can type it into the calculator, you can type it in here. Yes, x is allowed... but you must enter the arguments into the command line, for now.
+# By the way, that means you can request graphs. Go ahead. Do that if you want to.
+# You can use comments to document whatever you do. They are single line.
+
+# If no quit command is specified, you will be put into the regular loop.
+# This can be useful, you can define custom constants for later use that I did not include!
+
+let roottwo = root(2) # You will be able to use this constant when typing your own equations!
+
+set addthings = let nameone=4 let nametwo=6
+
+# ^^ Useful, you can write a bunch of constant assignments to an alias, so just invoking that alias will add all of them!
+# Basically, 
+
+3/2
+max(3,roottwo*2.2)
+# Comment!
+3**4
+roottworoottwo
+hist
+#q can be used to quit the calculator at the end of your script
+3+2# Comments that don't respect personal space work too!
+
