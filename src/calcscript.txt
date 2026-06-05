@@ -23,11 +23,15 @@ hist
 #q can be used to quit the calculator at the end of your script
 3+2# Comments that don't respect personal space work too!
 
-let constone = 4
-let consttwo = 7
-set macro = sin(constone)cos(consttwo) # By using previously declared constants, you can create macros that "take arguments"
-#                                         as in they use these constants that you can change at runtime
-#                                         You can think about ways to use this yourself :)
+let massone = me
+let masstwo = 7.346e+22
+let radius = 384784000
+
+set schwarzschild = 2Gmassone/c^2          # By using previously declared constants, you can create macros that "take arguments"
+#                                            as in they use these constants that you can change at runtime
+#                                            You can think about ways to use this yourself :)
+
+set gravity = Gmassonemasstwo/radius^2
 
 alias
-constant
+variable

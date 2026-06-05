@@ -67,7 +67,7 @@ enum class token_t
     SUBEXPR,
     VARIABLE,
     CONSTANT,
-    ASSIGNMENTCONSTANT,
+    ASSIGNMENTVARIABLE,
     ASSIGNMENTALIAS,
     INVALID
 };
@@ -103,9 +103,9 @@ struct options
     cpp_dec_float_100 xStep{}; //Hey, reference
 };
 
-struct constant
+struct variable
 {
-    constant(std::string inName, std::string inValue) : name(inName), value(inValue){}
+    variable(std::string inName, std::string inValue) : name(inName), value(inValue){}
     std::string name;
     std::string value;
 };
@@ -117,7 +117,7 @@ struct alias
     std::string value;
 };
 
-bool sortConstantsByNameLength(constant name1, constant name2)
+bool sortVariablesByNameLength(variable name1, variable name2)
 {
     return name1.name.length()>name2.name.length();
 }
@@ -130,9 +130,9 @@ bool sortAliasesByNameLength(alias name1, alias name2)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-namespace calculator
+namespace lesset
 {
-    std::vector<constant> userConstants;
+    std::vector<variable> userVariables;
     std::vector<alias> userAliases;
 }
 
@@ -177,9 +177,9 @@ class token
     ///////////////////////////////////////////////
     static bool isConstant(const std::string &input)
     {
-        for(size_t i{}; i<calculator::userConstants.size(); i++)
+        for(size_t i{}; i<lesset::userVariables.size(); i++)
         {
-            if(input==calculator::userConstants.at(i).name) return true;
+            if(input==lesset::userVariables.at(i).name) return true;
         }
         return input=="pi" 
             || input=="e" 
@@ -232,7 +232,7 @@ class token
 
     static token_t isAssignment(const std::string &input)
     {
-        if((input.find("let")==0) && input.find('=')!=std::string::npos) return token_t::ASSIGNMENTCONSTANT;
+        if((input.find("let")==0) && input.find('=')!=std::string::npos) return token_t::ASSIGNMENTVARIABLE;
         else if(input.find("set")==0 && input.find('=')!=std::string::npos) return token_t::ASSIGNMENTALIAS;
 
         else return token_t::INVALID;
@@ -395,9 +395,9 @@ class token
         if(input=="Na") return "6.02214076e+23";
         if(input=="rnd") return "rnd"; // These are replaced later
         if(input=="rndint") return "rndint";
-        for(size_t i{}; i<calculator::userConstants.size(); i++)
+        for(size_t i{}; i<lesset::userVariables.size(); i++)
         {
-            if(input==calculator::userConstants.at(i).name) return calculator::userConstants.at(i).value;
+            if(input==lesset::userVariables.at(i).name) return lesset::userVariables.at(i).value;
         }
         std::unreachable();
     }
@@ -409,7 +409,7 @@ class token
                 type==token_t::ROOTARGLEFT || type==token_t::ROOTARGRIGHT || type==token_t::ABS|| type==token_t::MAX|| type==token_t::MIN||type==token_t::MEDIAN||type==token_t::STDEV||type==token_t::GCF||type==token_t::LCM||
                 type==token_t::LOGARGLEFT || type==token_t::LOGARGRIGHT || type==token_t::MEAN || type==token_t::RNDINT || type==token_t::RNDSEL) return tokenCategory_t::SUBEXPR;
         else if(type==token_t::FUNCTION) return tokenCategory_t::FUNCTION;
-        else if(type==token_t::ASSIGNMENTCONSTANT || type==token_t::ASSIGNMENTALIAS) return tokenCategory_t::ASSIGNMENT;
+        else if(type==token_t::ASSIGNMENTVARIABLE || type==token_t::ASSIGNMENTALIAS) return tokenCategory_t::ASSIGNMENT;
         else if(type==token_t::INVALID) return tokenCategory_t::INVALID;
         else return tokenCategory_t::OPERATOR;
     }
@@ -435,6 +435,7 @@ class token
             std::ostringstream asOSStream;
             if constexpr(std::is_same<T,cpp_dec_float_100>()) asOSStream.precision(100);
             if constexpr(std::is_same<T, long double>()) asOSStream.precision(17);
+            if constexpr(std::is_same<T, double>()) asOSStream.precision(15);
             if constexpr(std::is_same<T, float>()) asOSStream.precision(6);
             asOSStream << xValue;
             this->tokenValue=asOSStream.str();
@@ -460,56 +461,7 @@ class token
     {
         return tokenCategory;
     }
-    static bool addIdentifier(constant newConstant)
-    {
-        for(size_t i{}; i<calculator::userAliases.size(); i++)
-        {
-            if(newConstant.name==calculator::userAliases.at(i).name) 
-            {
-                std::cerr<<"Duplicate names are not permissible.\n\n";
-                return true;
-            }
-        }
-        for(size_t i{}; i<calculator::userConstants.size(); i++)
-        {
-            if(newConstant.name==calculator::userConstants.at(i).name) 
-            {
-                calculator::userConstants.at(i).value=newConstant.value;
-                std::sort(calculator::userConstants.begin(), calculator::userConstants.end(), sortConstantsByNameLength);
-                return false;
-            }
-        }
-        calculator::userConstants.emplace_back(newConstant);
-        std::sort(calculator::userConstants.begin(), calculator::userConstants.end(), sortConstantsByNameLength);
-        return false;
-    }
-    static bool addIdentifier(alias newAlias)
-    {
-        for(size_t i{}; i<calculator::userConstants.size(); i++)
-        {
-            if(newAlias.name==calculator::userConstants.at(i).name) 
-            {
-                std::cerr<<"\nDuplicate names are not permissible.\n";
-                return true;
-            }
-        }
-        for(size_t i{}; i<calculator::userAliases.size(); i++)
-        {
-            if(newAlias.name==calculator::userAliases.at(i).name) 
-            {
-                calculator::userAliases.at(i).value=newAlias.value;
-                std::sort(calculator::userAliases.begin(), calculator::userAliases.end(), sortAliasesByNameLength);
-                return false;
-            }
-        }
-        calculator::userAliases.emplace_back(newAlias);
-        std::sort(calculator::userAliases.begin(), calculator::userAliases.end(), sortAliasesByNameLength);
-        return false;
-    }
-    std::vector<constant> userConstants()
-    {
-        return calculator::userConstants;
-    }
+
     template <typename T>
     size_t makeInteger(T xValue=NAN)
     {
@@ -554,6 +506,8 @@ template <typename T = cpp_dec_float_100> void evaluateArgs(token &arg, const T 
 template <typename T = cpp_dec_float_100> T evaluateGcf(token &arg, const T xValue);
 template <typename T = cpp_dec_float_100> T evaluateLcm(token &arg, const T xValue);
 
+bool addIdentifier(variable newConstant);
+bool addIdentifier(alias newAlias);
 bool replaceAliases(std::string &equation);
 bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, std::string &equation, std::string &resultHistory);
 
@@ -598,16 +552,6 @@ int main(int argc, char** argv)
             std::cout<<"\nWhy have you done this..?\n";
             return 0;
         }
-        if(equation.find("fish")!=std::string::npos) //Fish.
-        {                                   
-            std::cout<<"\nfish.\n";         
-            return 0;                       
-        }  
-        if(equation.find("nine plus ten")!=std::string::npos)
-        {                                   
-            std::cout<<"\ntwenty one.\n";         
-            return 0;                       
-        }  
         for(size_t i{}; i<equation.length(); i++) if(!(isValidInput(equation.at(i)))) equation.erase(equation.begin()+i--);
         if(equation!="")
         {
@@ -670,7 +614,7 @@ int main(int argc, char** argv)
                 {
                     if(equation.find("max(",i)==i) equation.replace(i,4,"grt("); //Alias max because it causes getVariableArgs to mess up
                 }
-                if(equation.find('x')<equation.find('#') )
+                if(equation.find('x')<equation.find('#'))
                     {
                         if(isNumber(argv[2])) options.xMin=static_cast<cpp_dec_float_100>(argv[2]);
                         else {std::cerr<<"\nYou did not enter a number\n"; return 0;}
@@ -800,12 +744,12 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
             continue;
         }
 
-        if(equation.find("constant")!=std::string::npos)
+        if(equation.find("variable")!=std::string::npos)
         {
-            std::cout<<"\nConstants:\n";
-            for(size_t i{}; i<calculator::userConstants.size(); i++)
+            std::cout<<"\nVariables:\n";
+            for(size_t i{}; i<lesset::userVariables.size(); i++)
             {
-                std::cout<<calculator::userConstants.at(i).name<<" = "<<calculator::userConstants.at(i).value<<'\n';
+                std::cout<<lesset::userVariables.at(i).name<<" = "<<lesset::userVariables.at(i).value<<'\n';
             }
             equation.clear();
             if(passedCalculationsFile) return false;
@@ -814,9 +758,9 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
         if(equation.find("alias")!=std::string::npos)
         {
             std::cout<<"\nAliases:\n";
-            for(size_t i{}; i<calculator::userAliases.size(); i++)
+            for(size_t i{}; i<lesset::userAliases.size(); i++)
             {
-                std::cout<<calculator::userAliases.at(i).name<<" = "<<calculator::userAliases.at(i).value<<'\n';
+                std::cout<<lesset::userAliases.at(i).name<<" = "<<lesset::userAliases.at(i).value<<'\n';
             }
             equation.clear();
             if(passedCalculationsFile) return false;
@@ -845,16 +789,13 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
             equation.clear();
             continue;
         }
-        for(size_t i{}; i<equation.length() && !passedInAsArg; i++)
-        {
-            if(equation.find("grt(",i)==i) equation.insert(i+3,"*"); //Alias max because it causes getVariableArgs to mess up
-        }
-        for(size_t i{}; i<equation.length(); i++)
-        {
-            if(equation.find("max(",i)==i) equation.replace(i,4,"grt("); //Alias max because it causes getVariableArgs to mess up
-        }
+        for(size_t i{}; i<equation.length() && !passedInAsArg; i++) if(equation.find("grt(",i)==i) equation.insert(i+3,"*"); //Alias max because it causes getVariableArgs to mess up
+        for(size_t i{}; i<equation.length(); i++) if(equation.find("max(",i)==i) equation.replace(i,4,"grt("); //Alias max because it causes getVariableArgs to mess up
+        
         std::vector<token> tokens = getTokens(equation,previousResult);
 
+
+        // Add identifiers
         for(size_t i{}; i<tokens.size(); i++)
         {
             if(tokens.at(i).typeCategory()==tokenCategory_t::ASSIGNMENT)
@@ -900,8 +841,13 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                     indentifierName==("h")  ||
                     indentifierName==("k")  ||
                     indentifierName==("R")  ||
-                    indentifierName==("o")) invalidName=true;
-                if(invalidName || tokens.at(i).value().find("constant")!=std::string::npos || tokens.at(i).value().find("alias")!=std::string::npos)
+                    indentifierName==("o") ||
+                    indentifierName==("nan") ||
+                    indentifierName==("grt(") ||
+                    tokens.at(i).value().find("variable")!=std::string::npos||
+                    tokens.at(i).value().find("alias")!=std::string::npos) invalidName=true;
+                
+                if(invalidName)
                 {
                     std::cerr<<"Forbidden name\n\n";
                     tokens.clear();
@@ -922,23 +868,34 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                 }
                 if(invalidName) break;
 
-
                 for(j=i+1; j<tokens.size() && tokens.at(j).type()!=token_t::ASSIGNMENTALIAS && tokens.at(j).type()!=token_t::VARIABLE; j++)
                 {
-                    if(tokens.at(i).type()==token_t::ASSIGNMENTCONSTANT && tokens.at(j).type()==token_t::ASSIGNMENTCONSTANT) break;
+                    if(tokens.at(i).type()==token_t::ASSIGNMENTVARIABLE && tokens.at(j).type()==token_t::ASSIGNMENTVARIABLE) break;
                     assignmentTokens.emplace_back(tokens.at(j));
                 }
-                if(tokens.at(i).type()==token_t::ASSIGNMENTCONSTANT) resultAsOSStream<<calculation<cpp_dec_float_100>(assignmentTokens, NAN);
+                if(tokens.at(i).type()==token_t::ASSIGNMENTVARIABLE) resultAsOSStream<<calculation<cpp_dec_float_100>(assignmentTokens, NAN);
                 else if(tokens.at(i).type()==token_t::ASSIGNMENTALIAS)
                 {
+                    for(size_t k{}; k<equation.length(); k++)
+                    {
+                        if(equation.find("grt(",k)==k) equation.replace(k,4,"max(");
+                    }
                     resultAsOSStream<<equation.substr(equation.find(tokens.at(i).value())+tokens.at(i).value().length());
                 }
                 bool failed{};
                 
-                if(resultAsOSStream.str().find("nan")==std::string::npos && tokens.at(i).type()==token_t::ASSIGNMENTCONSTANT) failed=tokens.at(0).addIdentifier(constant(tokens.at(i).value().substr(3,tokens.at(i).value().length()-4),resultAsOSStream.str()));
-                else if(tokens.at(i).type()==token_t::ASSIGNMENTALIAS) failed=tokens.at(0).addIdentifier(alias(tokens.at(i).value().substr(3,tokens.at(i).value().length()-4),resultAsOSStream.str()));
-                if(!failed)std::cout<<"Assigned \"" << tokens.at(i).value().substr(3,tokens.at(i).value().length()-4) << "\" value " << resultAsOSStream.str()<<"\n\n";
+                if(resultAsOSStream.str().find("nan")==std::string::npos && 
+                   tokens.at(i).type()==token_t::ASSIGNMENTVARIABLE &&
+                   indentifierName!=resultAsOSStream.str()) failed=addIdentifier(variable(std::string(indentifierName),resultAsOSStream.str()));
                 
+                else if(resultAsOSStream.str().find("nan")==std::string::npos &&
+                        tokens.at(i).type()==token_t::ASSIGNMENTALIAS &&
+                        indentifierName!=resultAsOSStream.str()) failed=addIdentifier(alias(std::string(indentifierName),resultAsOSStream.str()));
+        
+                if(!failed &&
+                resultAsOSStream.str().find("nan")==std::string::npos &&
+                indentifierName!=resultAsOSStream.str())std::cout<<"Assigned \"" << indentifierName << "\" value " << resultAsOSStream.str()<<"\n\n";
+                else std::cerr<<"Cannot assign nan or a name to itself\n\n";
                 tokens.erase(tokens.begin()+i,tokens.begin()+j-i);
                 previousResult=resultAsOSStream.str();
                 resultAsOSStream.str("");
@@ -1168,14 +1125,14 @@ void displayHelp(char arg)
     if(arg>='A' && arg<='Z') arg=arg+32; //'X' -> 'x' ToLower
 
     if(arg=='a' || arg=='f')
-        std::cout<<"\nThis calculator takes an expression using numbers, rnd, rndint, ans<prev. result> +, -, *, /, ^ (or **), x, !, !!, % (mod), npk, nck, |expr|, (expr) or [expr] and these functions:\n"<<
+        std::cout<<"\nLesset takes an expression using numbers, rnd, rndint, ans<prev. result> +, -, *, /, ^ (or **), x, !, !!, % (mod), npk, nck, |expr|, (expr) or [expr] and these functions:\n"<<
         "    root(denominator, enumerator), log(base,value), mean(args), median(args), stdev(expected, args), gcf(args),lcm(args), rndint(arg1,arg2), rndsel(args), min(args), max(args)\n"<<
         "    sin, cos, tan, sec, cosec, cot, arcsin, arccos, arctan, arcsec, arccosec, arccot\n"<<
         "    sinh, cosh, tanh, sech, cosech, coth, arcsinh, arccosh, arctanh, arcsech, arccosech, arccoth\n"<<
         "    floor, ceil, round, abs, ln, sign\n\n"<<
-        "    You may define your own constants using the following syntax: let<name>=<expr>\n"<<
-        "    You can also define aliases using the following syntax: set<name>=<expr>\n\n"<<
-        "    You can view your currently defined aliases and constants by typing \"constant\" or \"alias\"\n";
+        "    You may define your own variables using the following syntax: let<name>=<expr>\n"<<
+        "    You can also define aliases: set<name>=<expr>\n\n"<<
+        "    You can view your currently defined aliases and variales by typing \"variable\" or \"alias\"\n";
 
     if(arg=='a' || arg=='c')
         std::cout<<"\nConstants:"<<
@@ -1189,7 +1146,7 @@ void displayHelp(char arg)
         "    You may graph an equation if you include at least one instance of x.\n"<<
         "    Enter \"hist\" for a calculation history.\n"<<
         "    Identifier names may not be doubled.\n"<<
-        "    Input into trig functions is treated as input in radiants. To input as degrees, use the \"deg\" constant.\n"<<
+        "    Input into trig functions is treated as input in radiants. To input as degrees, use the \"deg\" variable.\n"<<
         "    Single argument functions may be called without parentheses, however, the interpretation is unorthodox. sin 5x = sin(5)*x, sin 5^2 = sin25\n"<<
         "    You may use the following notation for numbers: 2.5e+5 = 250000 = 2.5*10^5\n"<<
         "    root() and log() may be called with one argument, with defaults for the other. Example: root(4) = 2, log(10) = 1.\n"<<
@@ -1433,37 +1390,34 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
                 goto cleanup;
             }
             currentToken.push_back('=');
+            goto cleanup;
         }
         
         // Parse other symbols
         if(currentToken=="" && !inFunctionCall)
         {
             size_t k{};
-            for(; k<calculator::userAliases.size(); k++)
+            for(; k<lesset::userAliases.size(); k++)
             {
-                if(input.find(calculator::userAliases.at(k).name,i)==i)
+                if(input.find(lesset::userAliases.at(k).name,i)==i)
                 {
-                    currentToken=calculator::userAliases.at(k).name;
-                    i+=calculator::userAliases.at(k).name.length()-1;
+                    currentToken=lesset::userAliases.at(k).name;
+                    i+=lesset::userAliases.at(k).name.length()-1;
                 }
             }
-            if(k)
-            {
-                if(currentToken!="") goto cleanup;
-            }
+            if(k && currentToken!="") goto cleanup;
+
             size_t j{};
-            for(; j<calculator::userConstants.size(); j++)
+            for(; j<lesset::userVariables.size(); j++)
             {
-                if(input.find(calculator::userConstants.at(j).name,i)==i)
+                if(input.find(lesset::userVariables.at(j).name,i)==i)
                 {
-                    currentToken=calculator::userConstants.at(j).name;
-                    i+=calculator::userConstants.at(j).name.length()-1;
+                    currentToken=lesset::userVariables.at(j).name;
+                    i+=lesset::userVariables.at(j).name.length()-1;
                 }
-            }
-            if(j)
-            {
-                if(currentToken!="") goto cleanup;
-            }
+            } 
+            if(j && currentToken!="") goto cleanup;
+
             if(input.at(i)=='+') currentToken='+';
             else if (input.at(i)=='-') currentToken='-';
             else if (input.at(i)=='^') currentToken='^';
@@ -1491,7 +1445,7 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
             else if (input.find("arcsech",i)==i) {currentToken="asech"; i+=6;} //Alias
             else if (input.find("arccsch",i)==i) {currentToken="acsch"; i+=6;} //Alias
             else if (input.find("arccosech",i)==i) {currentToken="acsch"; i+=8;} //Alias
-            else if (input.find("arccosecanth",i)==i) {currentToken="acsch"; i+=11;} //Alias
+            else if (input.find("arccosecanth",i)==i) {currentToken="acsch"; i+=11;} //Alias, this one's for the memes
             else if (input.find("acosech",i)==i) {currentToken="acsch"; i+=6;} //Alias
             else if (input.find("arccoth",i)==i) {currentToken="acoth"; i+=6;} //Alias
             else if (input.find("arcsinh",i)==i) {currentToken="asinh"; i+=6;} //Alias
@@ -2394,28 +2348,74 @@ bool isNumberPart(const char input)
 
 bool replaceAliases(std::string &equation)
 {
-    if(calculator::userAliases.size()==0) return false;
-    for(size_t i{}; i<calculator::userAliases.size(); i++)
+    if(lesset::userAliases.size()==0) return false;
+    for(size_t i{}; i<lesset::userAliases.size(); i++)
     {
-        for(size_t j{}; j<equation.length(); j++)
+        for(int j{}; j<equation.length(); j++)
         {
-            if(equation.find(calculator::userAliases.at(i).name,j)==j)
+            if(equation.find(lesset::userAliases.at(i).name,j)==j)
             {
                 if(j>=3 && equation.find("set",j-3)==j-3)
                 {
                     break;
                 }
-                equation.erase(i,calculator::userAliases.at(i).name.length());
-                equation.insert(i,calculator::userAliases.at(i).value);
+                equation.erase(j,lesset::userAliases.at(i).name.length());
+                equation.insert(j,lesset::userAliases.at(i).value);
+                i=0;
+                j=-1;
             }
-            if(equation.find(calculator::userAliases.at(i).name,j)==j)
-            {
-                std::cerr<<"\nInfinite loop!\n";
-                return true;
-            }
-            //if(calculator::userAliases.at(i).name.length()>calculator::userAliases.at(i).value.length()) j-=calculator::userAliases.at(i).name.length()-calculator::userAliases.at(i).value.length();
         }
     }
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool addIdentifier(variable newVariable)
+{
+    for(size_t i{}; i<lesset::userAliases.size(); i++)
+    {
+        if(newVariable.name==lesset::userAliases.at(i).name) 
+        {
+            std::cerr<<"Duplicate names are not permissible.\n\n";
+            return true;
+        }
+    }
+    for(size_t i{}; i<lesset::userVariables.size(); i++)
+    {
+        if(newVariable.name==lesset::userVariables.at(i).name) 
+        {
+            lesset::userVariables.at(i).value=newVariable.value;
+            std::sort(lesset::userVariables.begin(), lesset::userVariables.end(), sortVariablesByNameLength);
+            return false;
+        }
+    }
+    lesset::userVariables.emplace_back(newVariable);
+    std::sort(lesset::userVariables.begin(), lesset::userVariables.end(), sortVariablesByNameLength);
+    return false;
+}
+
+bool addIdentifier(alias newAlias)
+{
+    for(size_t i{}; i<lesset::userVariables.size(); i++)
+    {
+        if(newAlias.name==lesset::userVariables.at(i).name) 
+        {
+            std::cerr<<"\nDuplicate names are not permissible.\n";
+            return true;
+        }
+    }
+    for(size_t i{}; i<lesset::userAliases.size(); i++)
+    {
+        if(newAlias.name==lesset::userAliases.at(i).name) 
+        {
+            lesset::userAliases.at(i).value=newAlias.value;
+            std::sort(lesset::userAliases.begin(), lesset::userAliases.end(), sortAliasesByNameLength);
+            return false;
+        }
+    }
+    lesset::userAliases.emplace_back(newAlias);
+    std::sort(lesset::userAliases.begin(), lesset::userAliases.end(), sortAliasesByNameLength);
     return false;
 }
 
