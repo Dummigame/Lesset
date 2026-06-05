@@ -225,10 +225,10 @@ class token
                input == "**" || 
                input=="npk" || 
                input=="nck" ||
-               input=="and" ||
-               input=="either" ||
-               input=="nor" ||
-               input=="or" ||
+               input=="AND" ||
+               input=="EITHER" ||
+               input=="NOR" ||
+               input=="OR" ||
                input=="=!" ||    
                input==">=" || 
                input=="<=";
@@ -945,10 +945,10 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                         tokens.at(i).value()=="=" || 
                         tokens.at(i).value()=="=!" ||
                         tokens.at(i).value()=="<=" || 
-                        tokens.at(i).value()=="or" ||
-                        tokens.at(i).value()=="and" ||
-                        tokens.at(i).value()=="either" ||
-                        tokens.at(i).value()=="nor" ||    
+                        tokens.at(i).value()=="OR" ||
+                        tokens.at(i).value()=="AND" ||
+                        tokens.at(i).value()=="EITHER" ||
+                        tokens.at(i).value()=="NOR" ||    
                         tokens.at(i).value()==">="))
                 {
                     if(resultAsOSStream.str()=="1") resultAsOSStream.str("true");
@@ -1001,10 +1001,10 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                          tokens.at(i).value()=="=" || 
                          tokens.at(i).value()=="=!" ||
                          tokens.at(i).value()=="<=" ||
-                         tokens.at(i).value()=="or" || 
-                         tokens.at(i).value()=="and" || 
-                         tokens.at(i).value()=="either" || 
-                         tokens.at(i).value()=="nor" || 
+                         tokens.at(i).value()=="OR" || 
+                         tokens.at(i).value()=="AND" || 
+                         tokens.at(i).value()=="EITHER" || 
+                         tokens.at(i).value()=="NOR" || 
                          tokens.at(i).value()==">="))
                     {
                         if(resultAsOSStream.str()=="1") resultAsOSStream.str("true");
@@ -1468,10 +1468,10 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
             else if (input.at(i)=='-') currentToken='-';
 
             else if (input.find("=!",i)==i) {currentToken="=!"; i++;}
-            else if (input.find("and",i)==i) {currentToken="and"; i+=2;}
-            else if (input.find("nor",i)==i) {currentToken="nor"; i+=2;}
-            else if (input.find("either",i)==i) {currentToken="either"; i+=5;}
-            else if (input.find("or",i)==i) {currentToken="or"; i++;}
+            else if (input.find("AND",i)==i) {currentToken="AND"; i+=2;}
+            else if (input.find("NOR",i)==i) {currentToken="NOR"; i+=2;}
+            else if (input.find("EITHER",i)==i) {currentToken="EITHER"; i+=5;}
+            else if (input.find("OR",i)==i) {currentToken="OR"; i++;}
             else if (input.find("<=",i)==i) {currentToken="<="; i++;}
             else if (input.find(">=",i)==i) {currentToken=">="; i++;}
             else if (input.at(i)=='<') currentToken='<';
@@ -2043,10 +2043,10 @@ T calculation(std::vector<token> tokens, const T xValue, const bool resetInvalid
             else if(pass==LOGICALS)
             {
                 if(i<=1) continue;
-                if(tokens.at(i-2).typeCategory()==tokenCategory_t::NUMBER && (tokens.at(i-1).value()=="and" ||
-                                                                                tokens.at(i-1).value()=="or" || 
-                                                                                tokens.at(i-1).value()=="either" || 
-                                                                                tokens.at(i-1).value()=="nor") &&
+                if(tokens.at(i-2).typeCategory()==tokenCategory_t::NUMBER && (tokens.at(i-1).value()=="AND" ||
+                                                                                tokens.at(i-1).value()=="OR" || 
+                                                                                tokens.at(i-1).value()=="EITHER" || 
+                                                                                tokens.at(i-1).value()=="NOR") &&
                                                                                 tokens.at(i).typeCategory()==tokenCategory_t::NUMBER)
                 {
                     T evaluatedBinary=evaluateBinary(tokens.at(i-2), tokens.at(i-1), tokens.at(i), xValue);
@@ -2361,10 +2361,10 @@ T evaluateBinary(token &numberStringLeft, token &operation, token &numberStringR
     if(operation.value()==">=") return numberLeft>=numberRight;
     if(operation.value()=="<=") return numberLeft<=numberRight;  
     if(operation.value()=="=!") return numberLeft!=numberRight;
-    if(operation.value()=="or") return numberLeft||numberRight;
-    if(operation.value()=="and") return numberLeft&&numberRight;
-    if(operation.value()=="either") return (!numberLeft)!=(!numberRight);
-    if(operation.value()=="nor") return (numberLeft==0)&&(numberRight==0);
+    if(operation.value()=="OR") return numberLeft||numberRight;
+    if(operation.value()=="AND") return numberLeft&&numberRight;
+    if(operation.value()=="EITHER") return (!numberLeft)!=(!numberRight);
+    if(operation.value()=="NOR") return (numberLeft==0)&&(numberRight==0);
     
 
     if(operation.value()=="+") return numberLeft+numberRight;
