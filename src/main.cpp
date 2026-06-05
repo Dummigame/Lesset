@@ -867,39 +867,39 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                 size_t j{};
                 std::vector<token> assignmentTokens;
                 bool invalidName{};
-                if(tokens.at(i).value().find("rndint") ||
-                    tokens.at(i).value().find("rnd") ||
-                    tokens.at(i).value().find("pi")  || 
-                    tokens.at(i).value().find("inf") ||
-                    tokens.at(i).value().find("prc") ||
-                    tokens.at(i).value().find("ppc") ||
-                    tokens.at(i).value().find("ppm") ||
-                    tokens.at(i).value().find("ppb") ||
-                    tokens.at(i).value().find("ppt") ||
-                    tokens.at(i).value().find("rad") ||
-                    tokens.at(i).value().find("deg") ||
-                    tokens.at(i).value().find("drg") ||
-                    tokens.at(i).value().find("dgr") ||
-                    tokens.at(i).value().find("tau") ||
-                    tokens.at(i).value().find("phi") ||
-                    tokens.at(i).value().find("eul") ||
-                    tokens.at(i).value().find("H0") ||
-                    tokens.at(i).value().find("E0") ||
-                    tokens.at(i).value().find("Z0") ||
-                    tokens.at(i).value().find("U0") ||
-                    tokens.at(i).value().find("me")    ||
-                    tokens.at(i).value().find("ma") ||
-                    tokens.at(i).value().find("ec") ||
-                    tokens.at(i).value().find("Na") ||
-                    tokens.at(i).value().find('e')  ||
-                    tokens.at(i).value().find('a')  ||
-                    tokens.at(i).value().find('c')  ||
-                    tokens.at(i).value().find('G')  ||
-                    tokens.at(i).value().find('g')  ||
-                    tokens.at(i).value().find('h')  ||
-                    tokens.at(i).value().find('k')  ||
-                    tokens.at(i).value().find('R')  ||
-                    tokens.at(i).value().find('o')) invalidName=true;
+                if(tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("rndint") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("rnd") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("pi")  || 
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("inf") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("prc") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ppc") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ppm") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ppb") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ppt") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("rad") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("deg") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("drg") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("dgr") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("tau") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("phi") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("eul") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("H0") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("E0") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("Z0") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("U0") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("me") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ma") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ec") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("Na") ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("e")  ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("a")  ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("c")  ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("G")  ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("g")  ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("h")  ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("k")  ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("R")  ||
+                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("o")) invalidName=true;
                 if(invalidName || tokens.at(i).value().find("constant")!=std::string::npos || tokens.at(i).value().find("alias")!=std::string::npos)
                 {
                     std::cerr<<"Forbidden name\n\n";
