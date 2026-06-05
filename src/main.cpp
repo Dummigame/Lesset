@@ -1174,7 +1174,7 @@ void displayHelp(char arg)
         "    sin, cos, tan, sec, cosec, cot, arcsin, arccos, arctan, arcsec, arccosec, arccot\n"<<
         "    sinh, cosh, tanh, sech, cosech, coth, arcsinh, arccosh, arctanh, arcsech, arccosech, arccoth\n"<<
         "    floor, ceil, round, abs, ln, sign\n"<<
-        "Comparison operators: <, >, <=, >=, =, =!, or, nor, and, either\n\n"<<
+        "Comparison operators: <, >, <=, >=, =, =!, OR, NOR, AND, EITHER\n\n"<<
         "You may define your own variables using the following syntax: let<name>=<expr>\n"<<
         "You can also define aliases: set<name>=<expr>\n\n"<<
         "You can view your currently defined aliases and variales by typing \"variable\" or \"alias\"\n";
