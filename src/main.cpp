@@ -867,39 +867,40 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                 size_t j{};
                 std::vector<token> assignmentTokens;
                 bool invalidName{};
-                if(tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("rndint") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("rnd") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("pi")  || 
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("inf") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("prc") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ppc") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ppm") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ppb") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ppt") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("rad") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("deg") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("drg") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("dgr") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("tau") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("phi") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("eul") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("H0") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("E0") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("Z0") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("U0") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("me") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ma") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("ec") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("Na") ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("e")  ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("a")  ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("c")  ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("G")  ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("g")  ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("h")  ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("k")  ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("R")  ||
-                    tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)==("o")) invalidName=true;
+                std::string_view indentifierName{tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)};
+                if(indentifierName==("rndint") ||
+                    indentifierName==("rnd") ||
+                    indentifierName==("pi")  || 
+                    indentifierName==("inf") ||
+                    indentifierName==("prc") ||
+                    indentifierName==("ppc") ||
+                    indentifierName==("ppm") ||
+                    indentifierName==("ppb") ||
+                    indentifierName==("ppt") ||
+                    indentifierName==("rad") ||
+                    indentifierName==("deg") ||
+                    indentifierName==("drg") ||
+                    indentifierName==("dgr") ||
+                    indentifierName==("tau") ||
+                    indentifierName==("phi") ||
+                    indentifierName==("eul") ||
+                    indentifierName==("H0") ||
+                    indentifierName==("E0") ||
+                    indentifierName==("Z0") ||
+                    indentifierName==("U0") ||
+                    indentifierName==("me") ||
+                    indentifierName==("ma") ||
+                    indentifierName==("ec") ||
+                    indentifierName==("Na") ||
+                    indentifierName==("e")  ||
+                    indentifierName==("a")  ||
+                    indentifierName==("c")  ||
+                    indentifierName==("G")  ||
+                    indentifierName==("g")  ||
+                    indentifierName==("h")  ||
+                    indentifierName==("k")  ||
+                    indentifierName==("R")  ||
+                    indentifierName==("o")) invalidName=true;
                 if(invalidName || tokens.at(i).value().find("constant")!=std::string::npos || tokens.at(i).value().find("alias")!=std::string::npos)
                 {
                     std::cerr<<"Forbidden name\n\n";
@@ -1173,7 +1174,7 @@ void displayHelp(char arg)
         "    sinh, cosh, tanh, sech, cosech, coth, arcsinh, arccosh, arctanh, arcsech, arccosech, arccoth\n"<<
         "    floor, ceil, round, abs, ln, sign\n\n"<<
         "    You may define your own constants using the following syntax: let<name>=<expr>\n"<<
-        "    You can also define aliases using the following syntax: alias<name>=<expr>\n\n"<<
+        "    You can also define aliases using the following syntax: set<name>=<expr>\n\n"<<
         "    You can view your currently defined aliases and constants by typing \"constant\" or \"alias\"\n";
 
     if(arg=='a' || arg=='c')
