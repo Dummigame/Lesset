@@ -695,17 +695,8 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
             continue;
         }                                 
         passedInAsArg:
-
-        for(size_t i{}; i<equation.length(); i++) if(equation.at(i)>='A' && 
-                                                   equation.at(i)<='Y' && 
-                                                   equation.at(i)!='G' && 
-                                                   equation.at(i)!='E' && 
-                                                   equation.at(i)!='U' &&
-                                                   equation.at(i)!='R' && 
-                                                   equation.at(i)!='N' && 
-                                                   equation.at(i)!='H') equation.at(i)=equation.at(i)+32; //'X' -> 'x' ToLower with exceptions
-
-        for(size_t i{}; i<equation.length(); i++) if(equation.at(i)<32) equation.erase(i--,1);
+        
+        for(size_t i{}; i<equation.length(); i++) if(equation.at(i)<32) equation.erase(i--,1); // Delete unprintable characters
         
         if(equation.find("hist")!=std::string::npos)
         {

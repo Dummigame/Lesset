@@ -27,11 +27,11 @@ let massone = me
 let masstwo = 7.346e+22
 let radius = 384784000
 
-set schwarzschild = 2Gmassone/c^2          # By using previously declared constants, you can create macros that "take arguments"
-#                                            as in they use these constants that you can change at runtime
-#                                            You can think about ways to use this yourself :)
+set schwarzschild = 2G massone/c^2          # By using previously declared constants, you can create macros that "take arguments"
+#                                             as in they use these constants that you can change at runtime
+#                                             You can think about ways to use this yourself :)
 
-set gravity = Gmassonemasstwo/radius^2
+set gravity = G massone masstwo/radius^2
 
 alias
 variable
