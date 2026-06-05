@@ -15,7 +15,7 @@
 #include <filesystem>
 
 void displayHelp(char arg='a');
-bool isValidInput(const char);
+bool isValidInput(char);
 
 using boost::multiprecision::cpp_dec_float_100;
 using boost::math::constants::pi;
@@ -39,7 +39,9 @@ enum pass
     FUNCTIONS,
     UNARYMINUS,
     MULTIPLICATION,
-    ADDITION
+    ADDITION,
+    COMPARISONS,
+    LOGICALS
 };
 
 enum class token_t
@@ -97,10 +99,10 @@ struct point
 
 struct options
 {
-    bool graph{};   //Whether to draw graph or not
+    bool graph{};   // Whether to draw graph or not
     cpp_dec_float_100 xMin{};
     cpp_dec_float_100 xMax{};  
-    cpp_dec_float_100 xStep{}; //Hey, reference
+    cpp_dec_float_100 xStep{}; // Hey, reference
 };
 
 struct variable
@@ -183,7 +185,7 @@ class token
         }
         return input=="pi" 
             || input=="e" 
-            || input=="a" //Is it in the game?
+            || input=="a" // Is it in the game?
             || input=="rnd" 
             || input=="rndint" 
             || input=="ec" 
@@ -215,14 +217,21 @@ class token
 
     static bool isBinaryOp(const char c)
     {
-        return c=='+' || c=='*' || c=='/' || c=='^' || c=='%';
+        return c=='+' || c=='*' || c=='/' || c=='^' || c=='%' || c=='<' || c=='>' || c=='=';
     }
     static bool isMultiCharBinary(const std::string &input)
     {
         return input=="mod" || 
                input == "**" || 
                input=="npk" || 
-               input=="nck";
+               input=="nck" ||
+               input=="and" ||
+               input=="either" ||
+               input=="nor" ||
+               input=="or" ||
+               input=="=!" ||    
+               input==">=" || 
+               input=="<=";
     }
 
     static bool isMultiCharUnary(const std::string &input)
@@ -263,7 +272,7 @@ class token
             input=="acsc" || 
             input=="acot" ||
             input=="asech" || 
-            input=="acsch" || //Screw math. Genuinely. What the hell.
+            input=="acsch" || // Screw math. Genuinely. What the hell.
             input=="acoth" ||
             input=="ln" ||
             input=="abs" ||
@@ -405,12 +414,18 @@ class token
     static tokenCategory_t determineTokenCategory(token_t &type)
     {
         if(type==token_t::NUMBER || type==token_t::VARIABLE || type==token_t::CONSTANT) return tokenCategory_t::NUMBER;
+
         else if(type==token_t::SUBEXPR ||
-                type==token_t::ROOTARGLEFT || type==token_t::ROOTARGRIGHT || type==token_t::ABS|| type==token_t::MAX|| type==token_t::MIN||type==token_t::MEDIAN||type==token_t::STDEV||type==token_t::GCF||type==token_t::LCM||
+                type==token_t::ROOTARGLEFT || type==token_t::ROOTARGRIGHT || type==token_t::ABS || type==token_t::MAX ||
+                type==token_t::MIN || type==token_t::MEDIAN || type==token_t::STDEV || type==token_t::GCF || type==token_t::LCM ||
                 type==token_t::LOGARGLEFT || type==token_t::LOGARGRIGHT || type==token_t::MEAN || type==token_t::RNDINT || type==token_t::RNDSEL) return tokenCategory_t::SUBEXPR;
+
         else if(type==token_t::FUNCTION) return tokenCategory_t::FUNCTION;
+
         else if(type==token_t::ASSIGNMENTVARIABLE || type==token_t::ASSIGNMENTALIAS) return tokenCategory_t::ASSIGNMENT;
+
         else if(type==token_t::INVALID) return tokenCategory_t::INVALID;
+
         else return tokenCategory_t::OPERATOR;
     }
     ///////////////////////////////////////////////
@@ -434,9 +449,10 @@ class token
         {
             std::ostringstream asOSStream;
             if constexpr(std::is_same<T,cpp_dec_float_100>()) asOSStream.precision(100);
-            if constexpr(std::is_same<T, long double>()) asOSStream.precision(17);
-            if constexpr(std::is_same<T, double>()) asOSStream.precision(15);
-            if constexpr(std::is_same<T, float>()) asOSStream.precision(6);
+            else if constexpr(std::is_same<T, long double>()) asOSStream.precision(17);
+            else if constexpr(std::is_same<T, double>()) asOSStream.precision(15);
+            else if constexpr(std::is_same<T, float>()) asOSStream.precision(6);
+            // else die
             asOSStream << xValue;
             this->tokenValue=asOSStream.str();
             this->tokenType=token_t::NUMBER;
@@ -502,9 +518,10 @@ template <typename T = cpp_dec_float_100> T evaluateStdev(token &arg, const T xV
 template <typename T = cpp_dec_float_100> T evaluateRndsel(token &arg, const T xValue);
 template <typename T = cpp_dec_float_100> T evaluateMax(token &arg, const T xValue);
 template <typename T = cpp_dec_float_100> T evaluateLeast(token &arg, const T xValue);
-template <typename T = cpp_dec_float_100> void evaluateArgs(token &arg, const T xValue, std::vector<T>&intermediateResults);
 template <typename T = cpp_dec_float_100> T evaluateGcf(token &arg, const T xValue);
 template <typename T = cpp_dec_float_100> T evaluateLcm(token &arg, const T xValue);
+
+template <typename T = cpp_dec_float_100> void evaluateArgs(token &arg, const T xValue, std::vector<T>&intermediateResults);
 
 bool addIdentifier(variable newConstant);
 bool addIdentifier(alias newAlias);
@@ -531,28 +548,20 @@ int main(int argc, char** argv)
         equation+=argv[1];
         if(equation=="") goto skipNonFileArgs;
         if(argc>5) goto skipNonFileArgs;
-        if(equation.length()>2 && equation.at(0)=='-' && equation.at(1)=='-' && (equation.at(2)=='h' || equation.at(2)=='H'))
+
+        if(equation=="--help" || equation == "-h" || equation.at(0)=='?')
         {
             displayHelp();
             return 0;
         }
-        else if(equation.length()>1 && equation.at(0)=='-' && (equation.at(1)=='h' || equation.at(1)=='H')) 
-        {
-            displayHelp();
-            return 0;
-        }
-        else if(equation.find('?')!=std::string::npos)
-        {
-            displayHelp();
-            return 0;
-        }
-        //This code is not very dry.
         if(equation.at(0)=='q'|| equation.at(0)=='Q')
         {
             std::cout<<"\nWhy have you done this..?\n";
             return 0;
         }
+
         for(size_t i{}; i<equation.length(); i++) if(!(isValidInput(equation.at(i)))) equation.erase(equation.begin()+i--);
+
         if(equation!="")
         {
             std::cout<<"\nPassed " <<equation<< " as input from command line\n";
@@ -563,12 +572,12 @@ int main(int argc, char** argv)
     {
         for(size_t i{}; i<equation.length() && !passedInAsArg; i++)
         {
-            if(equation.find("grt(",i)==i) equation.insert(i+3,"*"); //Alias max because it causes getVariableArgs to mess up
+            if(equation.find("grt(",i)==i) equation.insert(i+3,"*"); // Alias max() because it causes getVariableArgs to mess up
         }
     }
     for(size_t i{}; i<equation.length(); i++)
     {
-        if(equation.find("max(",i)==i) equation.replace(i,4,"grt("); //Alias max because it causes getVariableArgs to mess up
+        if(equation.find("max(",i)==i) equation.replace(i,4,"grt("); // Alias max() because it causes getVariableArgs to mess up
     }
     if(equation.find('x')!=std::string::npos)
     {
@@ -576,24 +585,31 @@ int main(int argc, char** argv)
         {
             if(isNumber(argv[2])) options.xMin=static_cast<cpp_dec_float_100>(argv[2]);
             else {std::cerr<<"\nYou did not enter a number\n"; return 0;}
+
             if(isNumber(argv[3])) options.xMax=static_cast<cpp_dec_float_100>(argv[3]);
             else {std::cerr<<"\nYou did not enter a number\n"; return 0;}
+
             if(argv[4][0]=='y' || argv[4][0]=='Y' || argv[4][0]=='g' || argv[4][0]=='G')
             {
                 options.graph=true;
                 if(argv[4][0]=='g' || argv[4][0]=='G') options.xStep=0.2;
                 else options.xStep=0.05;
             }
+
             else if(isNumber(argv[4])) options.xStep=static_cast<cpp_dec_float_100>(argv[4]);
             else {std::cerr<<"\nYou did not enter a number\n"; return 0;}
+
             if(options.xMin>=options.xMax) {std::cerr<<"\nInvalid range\n"; return 0;}
+
             if(options.xMax-options.xMin>options.xStep*1000) {std::cerr<<"\nToo many calculations requested\n"; return 0;}
-            
         }
         else {std::cerr<<"\nIncluded variable but did not specify all of the following: min, max, step/graphing(g or y (close zoom))\n"; return 0;}
     }
+
     skipNonFileArgs:
+
     bool quit{};
+    
     if(argc>5)
     {
         passedCalculationsFile=true;
@@ -607,37 +623,39 @@ int main(int argc, char** argv)
                 {
                     for(size_t i{}; i<equation.length() && !passedInAsArg; i++)
                     {
-                        if(equation.find("grt(",i)==i) equation.insert(i+3,"*"); //Alias max because it causes getVariableArgs to mess up
+                        if(equation.find("grt(",i)==i) equation.insert(i+3,"*"); // Alias max() because it causes getVariableArgs to mess up
                     }
                 }
                 for(size_t i{}; i<equation.length(); i++)
                 {
-                    if(equation.find("max(",i)==i) equation.replace(i,4,"grt("); //Alias max because it causes getVariableArgs to mess up
+                    if(equation.find("max(",i)==i) equation.replace(i,4,"grt("); // Alias max() because it causes getVariableArgs to mess up
                 }
                 if(equation.find('x')<equation.find('#'))
                     {
                         if(isNumber(argv[2])) options.xMin=static_cast<cpp_dec_float_100>(argv[2]);
                         else {std::cerr<<"\nYou did not enter a number\n"; return 0;}
+
                         if(isNumber(argv[3])) options.xMax=static_cast<cpp_dec_float_100>(argv[3]);
                         else {std::cerr<<"\nYou did not enter a number\n"; return 0;}
+
                         if(argv[4][0]=='y' || argv[4][0]=='Y' || argv[4][0]=='g' || argv[4][0]=='G')
                         {
                             options.graph=true;
                             if(argv[4][0]=='g' || argv[4][0]=='G') options.xStep=0.2;
                             else options.xStep=0.05;
                         }
+
                         else if(isNumber(argv[4])) options.xStep=static_cast<cpp_dec_float_100>(argv[4]);
                         else {std::cerr<<"\nYou did not enter a number\n"; return 0;}
                         
                         if(options.xMin>=options.xMax) {std::cerr<<"\nInvalid range\n"; return 0;}
+
                         if(options.xMax-options.xMin>options.xStep*1000) {std::cerr<<"\nToo many calculations requested\n"; return 0;}
                     }
 
-                if(equation.at(0)!='#' && !quit) quit = mainLoop(options, true, true, equation, resultHistory); //Lines with # are comments
-                if(calculationsFile.peek()=='\n')
-                {
-                    for(; calculationsFile.peek()=='\n'; calculationsFile.seekg(static_cast<size_t>(calculationsFile.tellg())+1));
-                }
+                if(equation.at(0)!='#' && !quit) quit = mainLoop(options, true, true, equation, resultHistory); // Lines with # are comments
+
+                if(calculationsFile.peek()=='\n') for(; calculationsFile.peek()=='\n'; calculationsFile.seekg(static_cast<size_t>(calculationsFile.tellg())+1));
             }
             calculationsFile.close();
             equation="";
@@ -695,7 +713,7 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
             continue;
         }                                 
         passedInAsArg:
-        
+
         for(size_t i{}; i<equation.length(); i++) if(equation.at(i)<32) equation.erase(i--,1); // Delete unprintable characters
         
         if(equation.find("hist")!=std::string::npos)
@@ -706,7 +724,7 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
             continue;
         }
         
-        if(equation.find("fish")!=std::string::npos) //Fish.
+        if(equation.find("fish")!=std::string::npos) // Fish.
         {                                   
             std::cout<<"\nfish.\n";         
             return 0;                       
@@ -719,10 +737,10 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
 
         for(int i{}; i<equation.length(); i++)
         {
-            if(!(isValidInput(equation.at(i)))) equation.erase(equation.begin()+i--); //Basic garbage removal
+            if(!(isValidInput(equation.at(i)))) equation.erase(equation.begin()+i--); // Basic garbage removal
             if(i>=0)
             {
-                if(equation.at(i)=='[') equation.at(i)='('; //Cheating
+                if(equation.at(i)=='[') equation.at(i)='('; // Cheating
                 else if(equation.at(i)==']') equation.at(i)=')';
                 else if(equation.at(i)==';') equation.at(i)=',';
             }
@@ -780,8 +798,8 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
             equation.clear();
             continue;
         }
-        for(size_t i{}; i<equation.length() && !passedInAsArg; i++) if(equation.find("grt(",i)==i) equation.insert(i+3,"*"); //Alias max because it causes getVariableArgs to mess up
-        for(size_t i{}; i<equation.length(); i++) if(equation.find("max(",i)==i) equation.replace(i,4,"grt("); //Alias max because it causes getVariableArgs to mess up
+        for(size_t i{}; i<equation.length() && !passedInAsArg; i++) if(equation.find("grt(",i)==i) equation.insert(i+3,"*"); // Alias max() because it causes getVariableArgs to mess up
+        for(size_t i{}; i<equation.length(); i++) if(equation.find("max(",i)==i) equation.replace(i,4,"grt("); // Alias max() because it causes getVariableArgs to mess up
         
         std::vector<token> tokens = getTokens(equation,previousResult);
 
@@ -900,7 +918,7 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
         {
             getVariableArgs(tokens, options);
         }
-        if(options.xMin==options.xMax) //No x found
+        if(options.xMin==options.xMax) // No x found
         {
             resultAsOSStream<<calculation<cpp_dec_float_100>(tokens, NAN);
 
@@ -919,6 +937,24 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                 resultAsOSStream<<"0";               
             }
             else previousResult=resultAsOSStream.str();
+
+            for(size_t i{}; i<tokens.size(); i++)
+            {
+                if ((tokens.at(i).value()=="<" || 
+                        tokens.at(i).value()==">" ||
+                        tokens.at(i).value()=="=" || 
+                        tokens.at(i).value()=="=!" ||
+                        tokens.at(i).value()=="<=" || 
+                        tokens.at(i).value()=="or" ||
+                        tokens.at(i).value()=="and" ||
+                        tokens.at(i).value()=="either" ||
+                        tokens.at(i).value()=="nor" ||    
+                        tokens.at(i).value()==">="))
+                {
+                    if(resultAsOSStream.str()=="1") resultAsOSStream.str("true");
+                    else if(resultAsOSStream.str()=="0") resultAsOSStream.str("false");
+                }
+            }
 
             for(size_t i{}; i<resultAsOSStream.str().length()+2 && !passedCalculationsFile; i++) std::cout <<"=";
             if(!passedCalculationsFile) std::cout << "\n " << resultAsOSStream.str() << '\n';
@@ -958,6 +994,23 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                     previousResult="0"; 
                 }
                 else previousResult=resultAsOSStream.str();
+                for(size_t i{}; i<tokens.size(); i++)
+                {
+                    if ((tokens.at(i).value()=="<" || 
+                         tokens.at(i).value()==">" ||
+                         tokens.at(i).value()=="=" || 
+                         tokens.at(i).value()=="=!" ||
+                         tokens.at(i).value()=="<=" ||
+                         tokens.at(i).value()=="or" || 
+                         tokens.at(i).value()=="and" || 
+                         tokens.at(i).value()=="either" || 
+                         tokens.at(i).value()=="nor" || 
+                         tokens.at(i).value()==">="))
+                    {
+                        if(resultAsOSStream.str()=="1") resultAsOSStream.str("true");
+                        else if(resultAsOSStream.str()=="0") resultAsOSStream.str("false");
+                    }
+                }
                 std::cout<<"\nFor x = " << xValue << ": " << resultAsOSStream.str();
                 resultAsOSStream.str("");
                 resultAsOSStream.clear();
@@ -1012,7 +1065,7 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
         options.xMin=0;
         options.xStep=0;
         firstPass=false;
-        calculation<double>(std::vector<token>(),NAN,true); //Reset seenInvalid in calculation, so if an invalid expression is passed on the next iteration, it prints the error text
+        calculation<double>(std::vector<token>(),NAN,true); // Reset seenInvalid in calculation, so if an invalid expression is passed on the next iteration, it prints the error text
         getTokens("",previousResult,true);
         if(passedInAsArg) break;
     }
@@ -1021,13 +1074,13 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//This function is ugly.
+// This function is ugly.
 void graph(const std::vector<point>&points, const cpp_dec_float_100 yMin, const cpp_dec_float_100 yMax, const uint xClosestToZeroIndex, const options &options)
 {
     if(yMin>yMax) return;
     const cpp_dec_float_100 yMin5 = yMin*5;
-    const cpp_dec_float_100 yRange=(abs(yMax)+abs(yMin))/options.xStep+abs(yMin5); //Absurd line
-    cpp_dec_float_100 height=yRange+(1/(yRange+0.5))*700; //Trust
+    const cpp_dec_float_100 yRange=(abs(yMax)+abs(yMin))/options.xStep+abs(yMin5); // Absurd line
+    cpp_dec_float_100 height=yRange+(1/(yRange+0.5))*700; // Trust
     if(height>yRange*6) height=yRange+15;
     
     const cpp_dec_float_100 length=points.size();
@@ -1046,10 +1099,10 @@ void graph(const std::vector<point>&points, const cpp_dec_float_100 yMin, const 
     std::ostringstream graphLine;
     for(uint rows{}; rows<height; rows++)
     {
-        if(rows>height/2+1 && yMin>=(height/2+1-rows)*options.xStep) break; //End if bottom of graph reached
+        if(rows>height/2+1 && yMin>=(height/2+1-rows)*options.xStep) break; // End if bottom of graph reached
         for(size_t i{}; i<length; i++)
         {
-            if(points.at(i).y==INFINITY || points.at(i).y==-INFINITY) return; //This should never trigger.
+            if(points.at(i).y==INFINITY || points.at(i).y==-INFINITY) return; // This should never trigger.
 
             //Plot point
             else if((i<length-1&&((points.at(i+1).y)/options.xStep >= height/2-rows)&&(points.at(i).y)/options.xStep<=height/2-rows)||
@@ -1081,7 +1134,7 @@ void graph(const std::vector<point>&points, const cpp_dec_float_100 yMin, const 
     }
 
     size_t i{1};
-    for(; graph.at(i).find('+')==std::string::npos; i++); //Skip until a line with a point (chops off unnecessary lines from top)
+    for(; graph.at(i).find('+')==std::string::npos; i++); // Skip until a line with a point (chops off unnecessary lines from top)
 
 
     if(graph.size()-i>300 || length >200)
@@ -1103,7 +1156,7 @@ void graph(const std::vector<point>&points, const cpp_dec_float_100 yMin, const 
         std::cin.ignore(10000,'\n');
         return;
     }
-    std::cout<<graph.at(0); //Print line with top of y axis
+    std::cout<<graph.at(0); // Print line with top of y axis
 
     for(; i<graph.size(); i++) std::cout<<graph.at(i);
     return;
@@ -1113,17 +1166,18 @@ void graph(const std::vector<point>&points, const cpp_dec_float_100 yMin, const 
 void displayHelp(char arg)
 {
 
-    if(arg>='A' && arg<='Z') arg=arg+32; //'X' -> 'x' ToLower
+    if(arg>='A' && arg<='Z') arg=arg+32; // 'X' -> 'x' ToLower
 
     if(arg=='a' || arg=='f')
         std::cout<<"\nLesset takes an expression using numbers, rnd, rndint, ans<prev. result> +, -, *, /, ^ (or **), x, !, !!, % (mod), npk, nck, |expr|, (expr) or [expr] and these functions:\n"<<
         "    root(denominator, enumerator), log(base,value), mean(args), median(args), stdev(expected, args), gcf(args),lcm(args), rndint(arg1,arg2), rndsel(args), min(args), max(args)\n"<<
         "    sin, cos, tan, sec, cosec, cot, arcsin, arccos, arctan, arcsec, arccosec, arccot\n"<<
         "    sinh, cosh, tanh, sech, cosech, coth, arcsinh, arccosh, arctanh, arcsech, arccosech, arccoth\n"<<
-        "    floor, ceil, round, abs, ln, sign\n\n"<<
-        "    You may define your own variables using the following syntax: let<name>=<expr>\n"<<
-        "    You can also define aliases: set<name>=<expr>\n\n"<<
-        "    You can view your currently defined aliases and variales by typing \"variable\" or \"alias\"\n";
+        "    floor, ceil, round, abs, ln, sign\n"<<
+        "Comparison operators: <, >, <=, >=, =, =!, or, nor, and, either\n\n"<<
+        "You may define your own variables using the following syntax: let<name>=<expr>\n"<<
+        "You can also define aliases: set<name>=<expr>\n\n"<<
+        "You can view your currently defined aliases and variales by typing \"variable\" or \"alias\"\n";
 
     if(arg=='a' || arg=='c')
         std::cout<<"\nConstants:"<<
@@ -1143,7 +1197,7 @@ void displayHelp(char arg)
         "    root() and log() may be called with one argument, with defaults for the other. Example: root(4) = 2, log(10) = 1.\n"<<
         "    Input from the command line is also accepted, though you may need to preface some characters with \\ to prevent your terminal from interpreting them.\n"<<
         "    Example: \"root(5\\!\\!,10\\!\\!)\" -> \"root(5!!, 10!!)\"\n"<<
-        "    Command line input values: equation lowestX highestX stepSizeX or graphing (g/y, y for high zoom), calculations file path\n\n";
+        "    Command line input values: equation lowestX highestX stepSizeX or graphing (g/y, y for high zoom), calculations file path\n";
     return;
 }
 
@@ -1277,6 +1331,7 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
 
             currentToken.push_back(input.at(i));
         }
+
         // Parse root()
         if(currentToken=="" && input.find("root(",i)==i) for(; i<input.length(); i++)
         {
@@ -1411,6 +1466,18 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
 
             if(input.at(i)=='+') currentToken='+';
             else if (input.at(i)=='-') currentToken='-';
+
+            else if (input.find("=!",i)==i) {currentToken="=!"; i++;}
+            else if (input.find("and",i)==i) {currentToken="and"; i+=2;}
+            else if (input.find("nor",i)==i) {currentToken="nor"; i+=2;}
+            else if (input.find("either",i)==i) {currentToken="either"; i+=5;}
+            else if (input.find("or",i)==i) {currentToken="or"; i++;}
+            else if (input.find("<=",i)==i) {currentToken="<="; i++;}
+            else if (input.find(">=",i)==i) {currentToken=">="; i++;}
+            else if (input.at(i)=='<') currentToken='<';
+            else if (input.at(i)=='>') currentToken='>';
+            else if (input.at(i)=='=') currentToken='=';
+
             else if (input.at(i)=='^') currentToken='^';
             else if (input.at(i)=='/') currentToken='/';
             else if (input.at(i)=='%') currentToken='%'; 
@@ -1421,7 +1488,7 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
             else if (input.find("ncr",i)==i) {currentToken="nck"; i+=2;}
             else if (input.find("ans",i)==i) {currentToken=lastSeenResult; i+=2;}
 
-            //Functions
+            // Functions
 
             else if (input.find("sign",i)==i) {currentToken="sign"; i+=3;}
 
@@ -1433,30 +1500,30 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
             else if (input.find("acsch",i)==i) {currentToken="acsch"; i+=4;}
             else if (input.find("acoth",i)==i) {currentToken="acoth"; i+=4;}
 
-            else if (input.find("arcsech",i)==i) {currentToken="asech"; i+=6;} //Alias
-            else if (input.find("arccsch",i)==i) {currentToken="acsch"; i+=6;} //Alias
-            else if (input.find("arccosech",i)==i) {currentToken="acsch"; i+=8;} //Alias
-            else if (input.find("arccosecanth",i)==i) {currentToken="acsch"; i+=11;} //Alias, this one's for the memes
-            else if (input.find("acosech",i)==i) {currentToken="acsch"; i+=6;} //Alias
-            else if (input.find("arccoth",i)==i) {currentToken="acoth"; i+=6;} //Alias
-            else if (input.find("arcsinh",i)==i) {currentToken="asinh"; i+=6;} //Alias
-            else if (input.find("arccosh",i)==i) {currentToken="acosh"; i+=6;} //Alias
-            else if (input.find("arctanh",i)==i) {currentToken="atanh"; i+=6;} //Alias
+            else if (input.find("arcsech",i)==i) {currentToken="asech"; i+=6;} // Alias
+            else if (input.find("arccsch",i)==i) {currentToken="acsch"; i+=6;} // Alias
+            else if (input.find("arccosech",i)==i) {currentToken="acsch"; i+=8;} // Alias
+            else if (input.find("arccosecanth",i)==i) {currentToken="acsch"; i+=11;} // Alias, this one's for the memes
+            else if (input.find("acosech",i)==i) {currentToken="acsch"; i+=6;} // Alias
+            else if (input.find("arccoth",i)==i) {currentToken="acoth"; i+=6;} // Alias
+            else if (input.find("arcsinh",i)==i) {currentToken="asinh"; i+=6;} // Alias
+            else if (input.find("arccosh",i)==i) {currentToken="acosh"; i+=6;} // Alias
+            else if (input.find("arctanh",i)==i) {currentToken="atanh"; i+=6;} // Alias
 
             else if (input.find("asec",i)==i) {currentToken="asec"; i+=3;}
             else if (input.find("acsc",i)==i) {currentToken="acsc"; i+=3;}
             else if (input.find("acot",i)==i) {currentToken="acot"; i+=3;}
-            else if (input.find("arcsec",i)==i) {currentToken="asec"; i+=5;} //Alias
-            else if (input.find("arcsecant",i)==i) {currentToken="asec"; i+=8;} //Alias
-            else if (input.find("arccsc",i)==i) {currentToken="acsc"; i+=5;} //Alias
-            else if (input.find("acosec",i)==i) {currentToken="acsc"; i+=5;} //Alias
-            else if (input.find("arccosec",i)==i) {currentToken="acsc"; i+=7;} //Alias
-            else if (input.find("arccosecant",i)==i) {currentToken="acsc"; i+=10;} //Alias
-            else if (input.find("arccot",i)==i) {currentToken="acot"; i+=5;} //Alias
+            else if (input.find("arcsec",i)==i) {currentToken="asec"; i+=5;} // Alias
+            else if (input.find("arcsecant",i)==i) {currentToken="asec"; i+=8;} // Alias
+            else if (input.find("arccsc",i)==i) {currentToken="acsc"; i+=5;} // Alias
+            else if (input.find("acosec",i)==i) {currentToken="acsc"; i+=5;} // Alias
+            else if (input.find("arccosec",i)==i) {currentToken="acsc"; i+=7;} // Alias
+            else if (input.find("arccosecant",i)==i) {currentToken="acsc"; i+=10;} // Alias
+            else if (input.find("arccot",i)==i) {currentToken="acot"; i+=5;} // Alias
 
-            else if (input.find("arcsin",i)==i) {currentToken="asin"; i+=5;} //Alias
-            else if (input.find("arccos",i)==i) {currentToken="acos"; i+=5;} //Alias
-            else if (input.find("arctan",i)==i) {currentToken="atan"; i+=5;} //Alias
+            else if (input.find("arcsin",i)==i) {currentToken="asin"; i+=5;} // Alias
+            else if (input.find("arccos",i)==i) {currentToken="acos"; i+=5;} // Alias
+            else if (input.find("arctan",i)==i) {currentToken="atan"; i+=5;} // Alias
             else if (input.find("asin",i)==i) {currentToken="asin"; i+=3;}
             else if (input.find("acos",i)==i) {currentToken="acos"; i+=3;}
             else if (input.find("atan",i)==i) {currentToken="atan"; i+=3;}
@@ -1468,14 +1535,14 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
             else if (input.find("sech",i)==i) {currentToken="sech"; i+=3;}
             else if (input.find("csch",i)==i) {currentToken="csch"; i+=3;}
             else if (input.find("coth",i)==i) {currentToken="coth"; i+=3;}
-            else if (input.find("cosech",i)==i) {currentToken="csch"; i+=5;} //Alias
-            else if (input.find("cotanh",i)==i) {currentToken="coth"; i+=5;} //Alias
+            else if (input.find("cosech",i)==i) {currentToken="csch"; i+=5;} // Alias
+            else if (input.find("cotanh",i)==i) {currentToken="coth"; i+=5;} // Alias
 
             else if (input.find("sec",i)==i) {currentToken="sec"; i+=2;}
             else if (input.find("csc",i)==i) {currentToken="csc"; i+=2;}
-            else if (input.find("cosec",i)==i) {currentToken="csc"; i+=4;} //Alias
+            else if (input.find("cosec",i)==i) {currentToken="csc"; i+=4;} // Alias
             else if (input.find("cot",i)==i) {currentToken="cot"; i+=2;}
-            else if (input.find("cotan",i)==i) {currentToken="cot"; i+=4;} //Alias
+            else if (input.find("cotan",i)==i) {currentToken="cot"; i+=4;} // Alias
 
             else if (input.find("sin",i)==i) {currentToken="sin"; i+=2;}
             else if (input.find("cos",i)==i) {currentToken="cos"; i+=2;}
@@ -1491,19 +1558,19 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
             else if (input.at(i)=='x') currentToken='x';
             
             //Constants
-            else if (input.find("rndint",i)==i && input.find("rndint(",i)!=i) {currentToken="rndint"; i+=5;} //Not really a constant but treated like one
-            else if (input.find("rnd",i)==i && input.find("rndint(",i)!=i) {currentToken="rnd"; i+=2;}       //Not really a constant but treated like one
+            else if (input.find("rndint",i)==i && input.find("rndint(",i)!=i) {currentToken="rndint"; i+=5;} // Not really a constant but treated like one
+            else if (input.find("rnd",i)==i && input.find("rndint(",i)!=i) {currentToken="rnd"; i+=2;}       // Not really a constant but treated like one
             else if (input.find("pi",i)==i) {currentToken="pi"; i++;}
             else if (input.find("inf",i)==i) {currentToken="inf"; i+=2;}
             else if (input.find("prc",i)==i) {currentToken="prc"; i+=2;}
-            else if (input.find("ppc",i)==i) {currentToken="prc"; i+=2;} //Alias
+            else if (input.find("ppc",i)==i) {currentToken="prc"; i+=2;} // Alias
             else if (input.find("ppm",i)==i) {currentToken="ppm"; i+=2;}
             else if (input.find("ppb",i)==i) {currentToken="ppb"; i+=2;}
             else if (input.find("ppt",i)==i) {currentToken="ppt"; i+=2;}
             else if (input.find("rad",i)==i) {currentToken="rad"; i+=2;}
             else if (input.find("deg",i)==i) {currentToken="deg"; i+=2;}
-            else if (input.find("drg",i)==i) {currentToken="deg"; i+=2;} //Weird alias
-            else if (input.find("dgr",i)==i) {currentToken="deg"; i+=2;} //Alias
+            else if (input.find("drg",i)==i) {currentToken="deg"; i+=2;} // Weird alias
+            else if (input.find("dgr",i)==i) {currentToken="deg"; i+=2;} // Alias
             else if (input.find("tau",i)==i) {currentToken="tau"; i+=2;}
             else if(input.find("phi",i)==i) {currentToken="phi"; i+=2;}
             else if(input.find("eul", i)==i) {currentToken="eul"; i+=2;}
@@ -1527,7 +1594,7 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
             else if (input.at(i)=='!')
             {
                 currentToken='!';
-                if(input.length()>i+1) if(input.at(i+1)=='!')
+                if(input.length()>i+1 && input.at(i+1)=='!')
                 {
                     currentToken="!!";
                     i++;
@@ -1545,10 +1612,20 @@ std::vector<token> getTokens(const std::string &input, const std::string& previo
         }
 
         // Parse Number
-        if(currentToken=="") for(; i<input.length() && ((input.at(i)>='0' && input.at(i)<='9') || (i<input.length()-1 && input.at(i)=='.' && std::isdigit(input.at(i+1))) || (i>0 && std::isdigit(input.at(i-1)) && input.at(i)=='e' && currentToken!="e" && i<input.length()-2 && (input.at(i+1)=='+' || input.at(i+1)=='-') && std::isdigit(input.at(i+2)))); i++)
+        if(currentToken=="")for(; i<input.length() &&
+                                  (std::isdigit(input.at(i)) ||
+                                  (i<input.length()-1 && input.at(i)=='.' && std::isdigit(input.at(i+1))) ||
+                                  (i>0 && std::isdigit(input.at(i-1)) &&
+                                   input.at(i)=='e' &&
+                                   currentToken!="e" &&
+                                   i<input.length()-2 &&
+                                   (input.at(i+1)=='+' || input.at(i+1)=='-') &&
+                                   std::isdigit(input.at(i+2)))); i++) // I am deeply sorry.
         {
             fixOffByOne=true;
-            if(i+1<input.length() && (input.at(i)=='e' && (input.at(i+1)=='+' || input.at(i+1)=='-')))
+            if(i+1<input.length() &&
+              (input.at(i)=='e' &&
+              (input.at(i+1)=='+' || input.at(i+1)=='-')))
             {
                 currentToken.push_back(input.at(i));
                 i++;
@@ -1678,38 +1755,71 @@ T calculation(std::vector<token> tokens, const T xValue, const bool resetInvalid
     if(tokens.size()==1 && tokens.at(0).type()==token_t::INVALID) return NAN;
     for(size_t i{1}; i<tokens.size(); i++)
     {
-        if(tokens.at(i).typeCategory()==tokenCategory_t::NUMBER && (tokens.at(i-1).type()==token_t::UNARYOP && tokens.at(i-1).value()!="-" || tokens.at(i-1).type()==token_t::MULTICHARUNARY))
-            tokens.emplace(tokens.begin()+i++, token("*"));
+        if(tokens.at(i).typeCategory()==tokenCategory_t::NUMBER && 
+          (tokens.at(i-1).type()==token_t::UNARYOP && tokens.at(i-1).value()!="-" || tokens.at(i-1).type()==token_t::MULTICHARUNARY))
+                tokens.emplace(tokens.begin()+i++, token("*"));
+
         if(i==tokens.size()) break;
-        if((tokens.at(i).type()==token_t::VARIABLE||tokens.at(i).type()==token_t::CONSTANT) && tokens.at(i-1).typeCategory()==tokenCategory_t::NUMBER)
-            tokens.emplace(tokens.begin()+i++, token("*"));
+
+        if((tokens.at(i).type()==token_t::VARIABLE || tokens.at(i).type()==token_t::CONSTANT) &&
+            tokens.at(i-1).typeCategory()==tokenCategory_t::NUMBER) tokens.emplace(tokens.begin()+i++, token("*"));
+
         if(i==tokens.size()) break;
-        if((tokens.at(i).typeCategory()==tokenCategory_t::NUMBER) && (tokens.at(i-1).type()==token_t::VARIABLE||tokens.at(i-1).type()==token_t::CONSTANT))
-            tokens.emplace(tokens.begin()+i++, token("*"));
+        if(tokens.at(i).typeCategory()==tokenCategory_t::NUMBER &&
+           (tokens.at(i-1).type()==token_t::VARIABLE || tokens.at(i-1).type()==token_t::CONSTANT)) tokens.emplace(tokens.begin()+i++, token("*"));
+
         if(i==tokens.size()) break;
-        if((tokens.at(i).typeCategory()==tokenCategory_t::FUNCTION) && (tokens.at(i-1).typeCategory()==tokenCategory_t::NUMBER))
-            tokens.emplace(tokens.begin()+i++, token("*"));
+
+        if(tokens.at(i).typeCategory()==tokenCategory_t::FUNCTION &&
+           tokens.at(i-1).typeCategory()==tokenCategory_t::NUMBER) tokens.emplace(tokens.begin()+i++, token("*"));
+
         if(i==tokens.size()) break;
-        if((tokens.at(i).typeCategory()==tokenCategory_t::SUBEXPR||tokens.at(i).typeCategory()==tokenCategory_t::FUNCTION) && tokens.at(i-1).typeCategory()!=tokenCategory_t::OPERATOR&& tokens.at(i-1).typeCategory()!=tokenCategory_t::FUNCTION&&tokens.at(i-1).type()!=token_t::ROOTARGLEFT&&tokens.at(i-1).type()!=token_t::LOGARGLEFT)
-            tokens.emplace(tokens.begin()+i++, token("*"));
+
+        if((tokens.at(i).typeCategory()==tokenCategory_t::SUBEXPR || tokens.at(i).typeCategory()==tokenCategory_t::FUNCTION) &&
+            tokens.at(i-1).typeCategory()!=tokenCategory_t::OPERATOR &&
+            tokens.at(i-1).typeCategory()!=tokenCategory_t::FUNCTION &&
+            tokens.at(i-1).type()!=token_t::ROOTARGLEFT &&
+            tokens.at(i-1).type()!=token_t::LOGARGLEFT) tokens.emplace(tokens.begin()+i++, token("*"));
+
         if(i==tokens.size()) break;
-        if(tokens.at(i).value()=="-" && tokens.at(i-1).type()!=token_t::BINARYOP && tokens.at(i-1).type()!=token_t::MULTICHARBINARY && tokens.at(i-1).type()!=token_t::UNARYOP && tokens.at(i-1).type()!=token_t::MULTICHARUNARY && tokens.at(i-1).type()!=token_t::FUNCTION)
-            tokens.emplace(tokens.begin()+i++, token("+"));
+
+        if(tokens.at(i).value()=="-" && tokens.at(i-1).type()!=token_t::BINARYOP &&
+          tokens.at(i-1).type()!=token_t::MULTICHARBINARY &&
+          tokens.at(i-1).type()!=token_t::UNARYOP &&
+          tokens.at(i-1).type()!=token_t::MULTICHARUNARY &&
+          tokens.at(i-1).type()!=token_t::FUNCTION) tokens.emplace(tokens.begin()+i++, token("+"));
+
         if(i==tokens.size()) break;
-        if((tokens.at(i-1).typeCategory()==tokenCategory_t::FUNCTION) && tokens.at(i).typeCategory()!=tokenCategory_t::OPERATOR&& tokens.at(i).typeCategory()!=tokenCategory_t::NUMBER&& tokens.at(i).typeCategory()!=tokenCategory_t::SUBEXPR&&tokens.at(i).type()!=token_t::ROOTARGRIGHT&&tokens.at(i).type()!=token_t::LOGARGRIGHT&&tokens.at(i).type()!=token_t::FUNCTION)
-            tokens.emplace(tokens.begin()+i++, token("*"));
-        if((tokens.at(i-1).typeCategory()==tokenCategory_t::SUBEXPR) && tokens.at(i).typeCategory()!=tokenCategory_t::OPERATOR&& tokens.at(i).typeCategory()!=tokenCategory_t::SUBEXPR&&tokens.at(i).type()!=token_t::ROOTARGRIGHT&&tokens.at(i).type()!=token_t::LOGARGRIGHT&&tokens.at(i).type()!=token_t::FUNCTION)
-            tokens.emplace(tokens.begin()+i++, token("*"));
+
+        if(tokens.at(i-1).typeCategory()==tokenCategory_t::FUNCTION &&
+        tokens.at(i).typeCategory()!=tokenCategory_t::OPERATOR &&
+        tokens.at(i).typeCategory()!=tokenCategory_t::NUMBER &&
+        tokens.at(i).typeCategory()!=tokenCategory_t::SUBEXPR &&
+        tokens.at(i).type()!=token_t::ROOTARGRIGHT &&
+        tokens.at(i).type()!=token_t::LOGARGRIGHT &&
+        tokens.at(i).type()!=token_t::FUNCTION) tokens.emplace(tokens.begin()+i++, token("*"));
+
+        if(tokens.at(i-1).typeCategory()==tokenCategory_t::SUBEXPR && 
+           tokens.at(i).typeCategory()!=tokenCategory_t::OPERATOR &&
+           tokens.at(i).typeCategory()!=tokenCategory_t::SUBEXPR &&
+           tokens.at(i).type()!=token_t::ROOTARGRIGHT &&
+           tokens.at(i).type()!=token_t::LOGARGRIGHT &&
+           tokens.at(i).type()!=token_t::FUNCTION) tokens.emplace(tokens.begin()+i++, token("*"));
+
         if(tokens.at(i).type()==token_t::INVALID) return NAN;
 
-        if(tokens.at(i).value()=="+" && tokens.at(i-1).typeCategory()!=tokenCategory_t::NUMBER && tokens.at(i-1).typeCategory()!=tokenCategory_t::SUBEXPR) tokens.erase(tokens.begin()+i--); //Lowk this line shouldn't work but it works?
+        if(tokens.at(i).value()=="+" &&
+        tokens.at(i-1).typeCategory()!=tokenCategory_t::NUMBER &&
+        tokens.at(i-1).typeCategory()!=tokenCategory_t::SUBEXPR) tokens.erase(tokens.begin()+i--);
     }
 
-    if(tokens.at(0).typeCategory()==tokenCategory_t::OPERATOR && tokens.at(0).value()!="-") tokens.erase(tokens.begin());
+    if(tokens.at(0).typeCategory()==tokenCategory_t::OPERATOR &&
+       tokens.at(0).value()!="-") tokens.erase(tokens.begin());
 
     for(int i{1}; i<tokens.size(); i++)
     {
-        if(i>0 && (tokens.at(i).type()==token_t::BINARYOP || tokens.at(i).type()==token_t::MULTICHARBINARY) && (tokens.at(i-1).type()==token_t::BINARYOP || tokens.at(i-1).type()==token_t::MULTICHARBINARY))
+        if(i>0 && (tokens.at(i).type()==token_t::BINARYOP || tokens.at(i).type()==token_t::MULTICHARBINARY) &&
+          (tokens.at(i-1).type()==token_t::BINARYOP || tokens.at(i-1).type()==token_t::MULTICHARBINARY))
         {
             tokens.erase(tokens.begin()+i--);
         }
@@ -1720,8 +1830,8 @@ T calculation(std::vector<token> tokens, const T xValue, const bool resetInvalid
         }
     }
     size_t pass{};
-    size_t failedPass{ADDITION+1};
-    for(; pass<=ADDITION; pass++)
+    size_t failedPass{LOGICALS};
+    for(; pass<=LOGICALS; pass++)
     {
         for(int i{}; i<tokens.size(); i++)
         {
@@ -1893,6 +2003,51 @@ T calculation(std::vector<token> tokens, const T xValue, const bool resetInvalid
                     }
                 if(i<=1) continue;
                 if(tokens.at(i-2).typeCategory()==tokenCategory_t::NUMBER && (tokens.at(i-1).value()=="+" || tokens.at(i-1).value()=="-") && tokens.at(i).typeCategory()==tokenCategory_t::NUMBER)
+                {
+                    T evaluatedBinary=evaluateBinary(tokens.at(i-2), tokens.at(i-1), tokens.at(i), xValue);
+                    resultAsOSStream << evaluatedBinary;
+                    tokens.at(i-2)=token(resultAsOSStream.str());
+                    tokens.erase(tokens.begin()+i-1);
+                    tokens.erase(tokens.begin()+i-1);
+                    resultAsOSStream.str("");
+                    resultAsOSStream.clear();
+                    i-=2;
+                }
+            }
+            else if(pass==COMPARISONS)
+            {
+                if(i==0)
+                    for(uint j{}; j<tokens.size(); j++)
+                    {
+                        if((tokens.at(j).value()=="+")) failedPass=ADDITION;
+                    }
+                if(i<=1) continue;
+                if(tokens.at(i-2).typeCategory()==tokenCategory_t::NUMBER && (tokens.at(i-1).value()=="<" ||
+                                                                                tokens.at(i-1).value()==">" || 
+                                                                                tokens.at(i-1).value()==">=" || 
+                                                                                tokens.at(i-1).value()=="<=" || 
+                                                                                tokens.at(i-1).value()=="=" ||
+                                                                                tokens.at(i-1).value()=="=!") &&
+                                                                                tokens.at(i).typeCategory()==tokenCategory_t::NUMBER)
+                {
+                    T evaluatedBinary=evaluateBinary(tokens.at(i-2), tokens.at(i-1), tokens.at(i), xValue);
+                    resultAsOSStream << evaluatedBinary;
+                    tokens.at(i-2)=token(resultAsOSStream.str());
+                    tokens.erase(tokens.begin()+i-1);
+                    tokens.erase(tokens.begin()+i-1);
+                    resultAsOSStream.str("");
+                    resultAsOSStream.clear();
+                    i-=2;
+                }
+            }
+            else if(pass==LOGICALS)
+            {
+                if(i<=1) continue;
+                if(tokens.at(i-2).typeCategory()==tokenCategory_t::NUMBER && (tokens.at(i-1).value()=="and" ||
+                                                                                tokens.at(i-1).value()=="or" || 
+                                                                                tokens.at(i-1).value()=="either" || 
+                                                                                tokens.at(i-1).value()=="nor") &&
+                                                                                tokens.at(i).typeCategory()==tokenCategory_t::NUMBER)
                 {
                     T evaluatedBinary=evaluateBinary(tokens.at(i-2), tokens.at(i-1), tokens.at(i), xValue);
                     resultAsOSStream << evaluatedBinary;
@@ -2199,6 +2354,18 @@ T evaluateBinary(token &numberStringLeft, token &operation, token &numberStringR
 {
     T numberLeft{numberStringLeft.number(xValue)};
     T numberRight{numberStringRight.number(xValue)};
+
+    if(operation.value()=="<") return numberLeft<numberRight;
+    if(operation.value()==">") return numberLeft>numberRight;    
+    if(operation.value()=="=") return numberLeft==numberRight;
+    if(operation.value()==">=") return numberLeft>=numberRight;
+    if(operation.value()=="<=") return numberLeft<=numberRight;  
+    if(operation.value()=="=!") return numberLeft!=numberRight;
+    if(operation.value()=="or") return numberLeft||numberRight;
+    if(operation.value()=="and") return numberLeft&&numberRight;
+    if(operation.value()=="either") return (!numberLeft)!=(!numberRight);
+    if(operation.value()=="nor") return (numberLeft==0)&&(numberRight==0);
+    
 
     if(operation.value()=="+") return numberLeft+numberRight;
     else if(operation.value()=="*") return numberLeft*numberRight;
