@@ -12,7 +12,10 @@ let roottwo = root(2) # You will be able to use this constant when typing your o
 set addthings = let nameone=4 let nametwo=6
 
 # ^^ Useful, you can write a bunch of constant assignments to an alias, so just invoking that alias will add all of them!
-# Basically, 
+
+let guess = rnd
+let solution = rndint(0,20)
+set try = guess=solution
 
 3/2
 max(3,roottwo*2.2)
@@ -22,6 +25,9 @@ roottworoottwo
 hist
 #q can be used to quit the calculator at the end of your script
 3+2# Comments that don't respect personal space work too!
+
+fish
+
 
 let massone = me
 let masstwo = 7.346e+22

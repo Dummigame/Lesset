@@ -817,7 +817,7 @@ bool mainLoop(options &options, bool passedInAsArg,bool passedCalculationsFile, 
                 size_t j{};
                 std::vector<token> assignmentTokens;
                 bool invalidName{};
-                std::string_view indentifierName{tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)};
+                std::string indentifierName{tokens.at(i).value().substr(3,tokens.at(i).value().length()-4)};
                 if(indentifierName==("rndint") ||
                     indentifierName==("rnd") ||
                     indentifierName==("pi")  || 
