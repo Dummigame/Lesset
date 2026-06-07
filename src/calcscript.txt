@@ -13,8 +13,7 @@ set addthings = let nameone=4 let nametwo=6
 
 # ^^ Useful, you can write a bunch of constant assignments to an alias, so just invoking that alias will add all of them!
 
-let guess = rnd
-let solution = rndint(0,20)
+let guess = rnd let solution = rndint(0,20)
 set try = guess=solution
 
 3/2
@@ -38,6 +37,3 @@ set schwarzschild = 2G massone/c^2          # By using previously declared const
 #                                             You can think about ways to use this yourself :)
 
 set gravity = G massone masstwo/radius^2
-
-alias
-variable

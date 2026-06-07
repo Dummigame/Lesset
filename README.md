@@ -11,4 +11,6 @@ To compile, you need gcc (g++) and the Boost library.
 `g++ main.cpp --std=c++23`
 
 
+This makes use of Boost multiprecision numbers, allowing for rather precise computation.
+
 No coding agents or LLMs or similar were used for this. In case this line disappears, I have succumbed to the dark side.
