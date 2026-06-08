@@ -715,6 +715,28 @@ bool mainLoop(Options &options, bool passedInAsArg,bool passedCalculationsFile, 
         }                                 
         passedInAsArg:
 
+        for(size_t i{}; i<equation.length(); i++) // Replace some unicode
+        {
+            if(equation.find("≤",i)==i) equation.replace(i,sizeof("≤")-1,"<=");
+            else if(equation.find("α",i)==i) equation.replace(i,sizeof("α")-1,"a");
+            else if(equation.find("τ",i)==i) equation.replace(i,sizeof("τ")-1,"tau");
+            else if(equation.find("ξ",i)==i) equation.replace(i,sizeof("ξ")-1,"rnd");
+            else if(equation.find("∞",i)==i) equation.replace(i,sizeof("∞")-1,"inf");
+            else if(equation.find("√",i)==i) equation.replace(i,sizeof("√")-1,"root(2,");
+            else if(equation.find("∛",i)==i) equation.replace(i,sizeof("∛")-1,"root(3,");
+            else if(equation.find("∜",i)==i) equation.replace(i,sizeof("∜")-1,"root(4,");
+            else if(equation.find("⊕",i)==i) equation.replace(i,sizeof("⊕")-1,"EITHER");
+            else if(equation.find("∨",i)==i) equation.replace(i,sizeof("∨")-1,"OR");
+            else if(equation.find("∧",i)==i) equation.replace(i,sizeof("∧")-1,"AND");
+            else if(equation.find("≥",i)==i) equation.replace(i,sizeof("≥")-1,">=");
+            else if(equation.find("−",i)==i) equation.replace(i,sizeof("−")-1,"-");    
+            else if(equation.find("≠",i)==i) equation.replace(i,sizeof("≠")-1,"=!"); 
+            else if(equation.find("÷",i)==i) equation.replace(i,sizeof("÷")-1,"/"); 
+            else if(equation.find("×",i)==i) equation.replace(i,sizeof("×")-1,"*"); 
+            else if(equation.find("π",i)==i) equation.replace(i,sizeof("π")-1,"pi");
+            else if(equation.find("γ",i)==i) equation.replace(i,sizeof("γ")-1,"eul"); 
+            else if(equation.find("ℯ",i)==i) equation.replace(i,sizeof("ℯ")-1,"e");
+        }
         for(size_t i{}; i<equation.length(); i++) if(equation.at(i)<32) equation.erase(i--,1); // Delete unprintable characters
         
         if(equation.find("hist")!=std::string::npos)
@@ -1157,7 +1179,7 @@ void graph(const std::vector<Point>&points, const cpp_dec_float_100 yMin, const 
             }
             file<<graph.at(0);
             for(; i<graph.size(); i++) file<<graph.at(i);
-            std::cout<<"File saved to " << std::filesystem::current_path() << "\n";
+            std::cout<<"File saved to " << std::filesystem::current_path() << '\n';
         }
         std::cin.ignore(10000,'\n');
         return;
@@ -1180,7 +1202,7 @@ void displayHelp(char arg)
         "    sin, cos, tan, sec, cosec, cot, arcsin, arccos, arctan, arcsec, arccosec, arccot\n"<<
         "    sinh, cosh, tanh, sech, cosech, coth, arcsinh, arccosh, arctanh, arcsech, arccosech, arccoth\n"<<
         "    floor, ceil, round, abs, ln, sign\n"<<
-        "Comparison operators: <, >, <=, >=, =, =!, OR, NOR, AND, EITHER\n\n"<<
+        "Comparison operators: <, >, <= ≤ , >= ≥, =, =! ≠, OR<∨>, NOR, AND<∧>, EITHER<⊕>\n\n"<<
         "You may define your own variables using the following syntax: let<name>=<expr>\n"<<
         "You can also define aliases: set<name>=<expr>\n\n"<<
         "You can view your currently defined aliases and variales by typing \"variable\" or \"alias\"\n";
