@@ -252,6 +252,9 @@ class Token
     {
         return input=="sin" || 
             input=="sign" || 
+            input=="sqrt" ||
+            input=="cbrt" ||
+            input=="qtrt" ||   
             input=="cos" ||
             input=="tan" ||
             input=="sinh" || 
@@ -696,7 +699,7 @@ bool mainLoop(Options &options, bool passedInAsArg,bool passedCalculationsFile, 
         }
 
         if(equation.length()==0) continue;
-        if(equation.at(0)=='q' || equation.at(0)=='Q' || equation.find("exit")!=std::string::npos || equation.find("quit")!=std::string::npos) return 1;
+        if(((equation.at(0)=='q' || equation.at(0)=='Q') && equation.find("trt")!=1) || equation.find("exit")!=std::string::npos || equation.find("quit")!=std::string::npos) return 1;
         if(equation.at(0)=='?')
         {
             if(equation.length()>1 && (equation.at(1)=='a' || equation.at(1)=='f' || equation.at(1)=='c' || equation.at(1)=='n' || equation.at(1)=='h'))
@@ -722,9 +725,9 @@ bool mainLoop(Options &options, bool passedInAsArg,bool passedCalculationsFile, 
             else if(equation.find("τ",i)==i) equation.replace(i,sizeof("τ")-1,"tau");
             else if(equation.find("ξ",i)==i) equation.replace(i,sizeof("ξ")-1,"rnd");
             else if(equation.find("∞",i)==i) equation.replace(i,sizeof("∞")-1,"inf");
-            else if(equation.find("√",i)==i) equation.replace(i,sizeof("√")-1,"root(2,");
-            else if(equation.find("∛",i)==i) equation.replace(i,sizeof("∛")-1,"root(3,");
-            else if(equation.find("∜",i)==i) equation.replace(i,sizeof("∜")-1,"root(4,");
+            else if(equation.find("√",i)==i) equation.replace(i,sizeof("√")-1,"sqrt");
+            else if(equation.find("∛",i)==i) equation.replace(i,sizeof("∛")-1,"cbrt");
+            else if(equation.find("∜",i)==i) equation.replace(i,sizeof("∜")-1,"qtrt");
             else if(equation.find("⊕",i)==i) equation.replace(i,sizeof("⊕")-1,"EITHER");
             else if(equation.find("∨",i)==i) equation.replace(i,sizeof("∨")-1,"OR");
             else if(equation.find("∧",i)==i) equation.replace(i,sizeof("∧")-1,"AND");
@@ -1522,6 +1525,10 @@ std::vector<Token> getTokens(const std::string &input, const std::string& previo
             // Functions
 
             else if (input.find("sign",i)==i) {currentToken="sign"; i+=3;}
+            else if (input.find("sqrt",i)==i) {currentToken="sqrt"; i+=3;}
+            else if (input.find("cbrt",i)==i) {currentToken="cbrt"; i+=3;}
+            else if (input.find("qtrt",i)==i) {currentToken="qtrt"; i+=3;}
+
 
             else if (input.find("asinh",i)==i) {currentToken="asinh"; i+=4;}
             else if (input.find("acosh",i)==i) {currentToken="acosh"; i+=4;}
@@ -1868,7 +1875,7 @@ T calculation(std::vector<Token> tokens, const T xValue, const bool resetInvalid
         {
             if(pass==SUBEXPRESSIONS)
             {
-                T evaluatedSubexpr{};
+                T evaluatedSubexpr{NAN};
                 if(tokens.at(i).type()==token_t::SUBEXPR) evaluatedSubexpr=calculation(getTokens(tokens.at(i).value()), xValue);
                 else if(tokens.at(i).type()==token_t::MEAN) evaluatedSubexpr=evaluateMean(tokens.at(i), xValue);
                 else if(tokens.at(i).type()==token_t::MEDIAN) evaluatedSubexpr=evaluateMedian(tokens.at(i), xValue);
@@ -1903,7 +1910,9 @@ T calculation(std::vector<Token> tokens, const T xValue, const bool resetInvalid
                     }
                 }
 
-                if(tokens.at(i).typeCategory()==tokenCategory_t::SUBEXPR && tokens.at(i).type()!=token_t::ROOTARGLEFT && tokens.at(i).type()!=token_t::LOGARGLEFT)
+                if(tokens.at(i).typeCategory()==tokenCategory_t::SUBEXPR &&
+                   tokens.at(i).type()!=token_t::ROOTARGLEFT &&
+                   tokens.at(i).type()!=token_t::LOGARGLEFT)
                 {
                     resultAsOSStream<<evaluatedSubexpr;
                     tokens.at(i)=Token(resultAsOSStream.str());
@@ -1945,7 +1954,7 @@ T calculation(std::vector<Token> tokens, const T xValue, const bool resetInvalid
                     {
                         if(i-2<tokens.size())
                         {
-                            //Account for something like x^-1
+                            // Account for something like x^-1
                             if((tokens.at(i-2).value()=="^" || tokens.at(i-1).value()=="**") && tokens.at(i-1).value()=="-" && tokens.at(i).typeCategory()==tokenCategory_t::NUMBER)
                             {
                                 T evaluatedUnary=evaluateUnary(tokens.at(i), tokens.at(i-1), xValue);
@@ -1976,6 +1985,17 @@ T calculation(std::vector<Token> tokens, const T xValue, const bool resetInvalid
                     {
                         if(tokens.at(j).value()=="^" && failedPass==ADDITION) failedPass=EXPONENTIATION;
                     }
+
+                // Account for something like sin-1... or sqrt-1 if the user feels funny.
+                if(i!=0 && i<tokens.size()-1 && tokens.at(i-1).type()==token_t::FUNCTION  && tokens.at(i).value()=="-" && tokens.at(i+1).typeCategory()==tokenCategory_t::NUMBER)
+                {
+                    tokens.at(i)=Token('-'+tokens.at(i+1).value());
+                    resultAsOSStream << evaluateUnary(tokens.at(i), tokens.at(i-1), xValue);
+                    tokens.at(i-1)=Token(resultAsOSStream.str());
+                    resultAsOSStream.str("");
+                    resultAsOSStream.clear();
+                    tokens.erase(tokens.begin()+i,tokens.begin()+i+2);                          
+                }
                 if(i!=0&&(tokens.at(i-1).type()==token_t::FUNCTION) && tokens.at(i).typeCategory()==tokenCategory_t::NUMBER)
                 {
                     T evaluatedUnary=evaluateUnary(tokens.at(i), tokens.at(i-1), xValue);
@@ -2429,6 +2449,10 @@ T evaluateUnary(Token &numberString, Token &operation, const T xValue)
         if(number<0) return -1;
     }
 
+    if(operation.value()=="sqrt") return sqrt(number);
+    if(operation.value()=="cbrt") return cbrt(number);
+    if(operation.value()=="qtrt") return pow(number,0.25);
+    
     if(operation.value()=="sin") return sin(number);
     if(operation.value()=="cos") return cos(number);
     if(operation.value()=="tan") return tan(number);
