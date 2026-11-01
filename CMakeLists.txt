@@ -8,10 +8,10 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "" FORCE)
 endif()
 
-set(CMAKE_CXX_STANDARD 23)
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DVK_PROTOTYPES")
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_PROTOTYPES")
-
+set(CMAKE_CXX_STANDARD 26)
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DVK_PROTOTYPES --undefine-macro=LESSET_INCLUDE_DEBUG -O3")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_PROTOTYPES -freflection --undefine-macro=LESSET_INCLUDE_DEBUG -O3")
+option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
 include(FetchContent)
 
 FetchContent_Declare(

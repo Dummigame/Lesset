@@ -2,7 +2,7 @@
 
 Calculator with...
 
-Order of operations! Constants! Variables! Nearly 100 predefined functions! Graphing! Complex Numbers! Sliders! Custom Functions! Table calculations! Far too many decimal places of precision! Enough operators to make your head spin! Styling! Military grade scripting! Jank!
+Order of operations! Constants! Variables! Sliders! 100 predefined functions! Custom Functions! Custom Operators! Table calculations! Graphing! Far too many decimal places of precision! Enough operators to make your head spin! Styling! Military grade scripting! Jank!
 
 <img src="/Assets/graphNew.png" height="75%" width="75%">
 
