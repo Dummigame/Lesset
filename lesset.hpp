@@ -33,14 +33,14 @@ using graphNum = std::complex<graphNumType>;
 inline bool containsX(const std::string &input, lessetB::CustomSymbols &customSymbols);
 namespace lessetB
 {
-    
+
 bool isValidInput(char);
 inline graphNum sscanfWrapper(const std::string &s)
 {
     graphNumType re{},im{};
     int successfullyConverted = sscanf(s.c_str(),"(%lf,%lf", &re,&im);
     assert(successfullyConverted==2);
-    return graphNum(re,im);
+    return {re,im};
 
 }
 
@@ -48,14 +48,12 @@ inline graphNum sscanfWrapper(const std::string &s, int &converted)
 {
     graphNumType re{},im{};
     converted=sscanf(s.c_str(),"(%lf,%lf", &re,&im);
-    return graphNum(re,im);
+    return {re,im};
 
 }
 
 using namespace boost::multiprecision;
 
-inline std::random_device randev;
-inline std::mt19937 randomMt(randev());
 
 constexpr int maxPrecision = 100;     // Really powerful, upper limit for precision in calculations. Must be >=16 I think. Constants have up to 100 decimal places.
 constexpr int defaultPrecision = 20;  // What is shown by default. Should not be higher than max.
@@ -119,9 +117,9 @@ enum operatorAttributes : char8_t
     FUNCTION_LIKE=U_PREFIX|R_ASSOCIATIVE,
 };
 
-inline operatorAttributes operator & (operatorAttributes a, operatorAttributes b) {return static_cast<operatorAttributes>(std::to_underlying(a)&std::to_underlying(b));}
-inline operatorAttributes operator | (operatorAttributes a, operatorAttributes b) {return static_cast<operatorAttributes>(std::to_underlying(a)|std::to_underlying(b));}
-inline operatorAttributes operator + (operatorAttributes a, operatorAttributes b) {return static_cast<operatorAttributes>(std::to_underlying(a)+std::to_underlying(b));}
+inline operatorAttributes operator & (operatorAttributes lhs, operatorAttributes rhs) {return static_cast<operatorAttributes>(std::to_underlying(lhs)&std::to_underlying(rhs));}
+inline operatorAttributes operator | (operatorAttributes lhs, operatorAttributes rhs) {return static_cast<operatorAttributes>(std::to_underlying(lhs)|std::to_underlying(rhs));}
+inline operatorAttributes operator + (operatorAttributes lhs, operatorAttributes rhs) {return static_cast<operatorAttributes>(std::to_underlying(lhs)+std::to_underlying(rhs));}
 enum class tokenType : char8_t
 {
     BINARYOP,
@@ -129,7 +127,7 @@ enum class tokenType : char8_t
     VARIABLE,
     CONSTANT,
     FUNCTION, // Simple baby functions
-    
+
     SUBEXPR,
     // Multiarg functions
     IF,
@@ -171,7 +169,7 @@ enum class tokenCategory : char8_t
     FUNCTION,
     SUBEXPR,
     OPERATOR,
-    INVALID
+    INVALID,
 };
 
 bool isNumberPart(char input);
@@ -190,18 +188,18 @@ struct Frac
 struct Options
 {
     bool graph{};
-    cpp_complex<maxPrecision> xMin{};
-    cpp_complex<maxPrecision> xMax{};  
-    cpp_complex<maxPrecision> xStep{}; // Hey, reference
+    cpp_complex<maxPrecision> xMin;
+    cpp_complex<maxPrecision> xMax;
+    cpp_complex<maxPrecision> xStep; // Hey, reference
     cpp_complex<maxPrecision> aroundTruthinessLeniency{0.01};
     bool interpolateDiscontinuities{};
     bool prioritizeImplicitMultiplication{true};
-    // Used to prevent defining a recursive function from the graphing menu. 
+    // Used to prevent defining a recursive function from the graphing menu.
     // This is still possible in scripts (and you can trap the calculator in a loop until you hit the recursion limit)
-    std::string definesFunction="";
+    std::string definesFunction;
     bool prettyPrinting{true};
     std::string ans;
-    
+
 };
 
 
@@ -225,18 +223,14 @@ struct Function
 struct Operation
 {
     std::string m_def;
-    pass m_precedence;
-    operatorAttributes m_info;
+    pass m_precedence{};
+    operatorAttributes m_info{};
 
     std::array<std::string, 2> m_argNames{};
 
     bool operator ==(const Operation &other)
     {
         return m_precedence==other.m_precedence && m_info==other.m_info && m_argNames==other.m_argNames;
-    }
-    bool operator !=(const Operation &other)
-    {
-        return !(m_precedence==other.m_precedence && m_info==other.m_info && m_argNames==other.m_argNames);
     }
 };
 
@@ -264,8 +258,9 @@ class Token;
 [[nodiscard]] inline std::string cleanInput(const std::string& s)
 {
     std::string equation=s;
+    if(equation.contains('#')) equation.erase(equation.find('#'));
     for(size_t i{}; i < equation.length(); i++)
-        if(equation.at(i) < 32) equation.erase(i--, 1); // Delete unprintable characters and unicode
+        if(equation.at(i) < ' ') equation.erase(i--, 1); // Delete unprintable characters and unicode
     for(size_t i{}; i < equation.length(); i++)
     {
         if(globals::useDecimalComma && equation.at(i) == ',') equation.at(i) = '.';
@@ -280,15 +275,15 @@ class Token
 {
 
     private:
-    
+
     std::string m_value{};
     graphNum m_num{NAN,NAN};
     tokenType m_type{};
     operatorAttributes m_info{NOP};
     tokenCategory m_category{};
     pass m_precedence{INITIAL};
-    
-    
+
+
 
     ///////////////////////////////////////////////
     [[nodiscard]] tokenType determineType(std::string &value)
@@ -304,7 +299,7 @@ class Token
                 if(i==0) return tokenType::INVALID;
             }
 
-            if(globals::userFunctions.find(value.substr(0,i))!=globals::userFunctions.end())
+            if(globals::userFunctions.contains(value.substr(0,i)))
             {
                 return tokenType::CUSTOMFN;
             }
@@ -317,13 +312,13 @@ class Token
                 i=value.length();
                 if(i==0) return tokenType::INVALID;
             }
-            if(globals::userOperations.find(value.substr(0,i))!=globals::userOperations.end())
+            if(globals::userOperations.contains(value.substr(0,i)))
             {
                 return tokenType::CUSTOMOP;
             }
         }
 
-        if(value.length()>0 && value.at(0)=='(')
+        if(!value.empty() && value.at(0)=='(')
         {
             std::stringstream ss;
             ss<<value;
@@ -338,8 +333,8 @@ class Token
             }
             if(isComplexNum) return tokenType::CONSTANT;
         }
-        
-        if((globals::userVariables.find(value)!=globals::userVariables.end()) || globals::constants.find(value)!=globals::constants.end()) return tokenType::CONSTANT;
+
+        if((globals::userVariables.contains(value)) || globals::constants.contains(value)) return tokenType::CONSTANT;
 
         if(value=="h*") return tokenType::BINARYOP;
 
@@ -358,7 +353,7 @@ class Token
                     if(i==0) return tokenType::INVALID;
                 }
                 candidate=value.substr(0,i);
-                if(globals::symbols.find(candidate)!=globals::symbols.end())
+                if(globals::symbols.contains(candidate))
                 {
                     return globals::symbols.find(candidate)->second;
                 }
@@ -375,7 +370,7 @@ class Token
 
         for(size_t i{MAX_KEYWORD_LENGTH}; i>0; i--)
         {
-            if(globals::multiArgFunctions.find(input.substr(0,i))!=globals::multiArgFunctions.end())
+            if(globals::multiArgFunctions.contains(input.substr(0,i)))
             {
                 type=globals::multiArgFunctions.find(input.substr(0,i))->second;
                 offset=globals::multiArgFunctions.find(input.substr(0,i))->first.length()+1;
@@ -394,7 +389,7 @@ class Token
     bool isAbs(std::string &input)
     {
         if((input.at(0)!='|') && input.find("abs(")!=0) return false;
-        
+
         if(input.at(0)=='|') for(size_t i{1}; i<input.length()-1; i++) m_value.push_back(input.at(i));
         else for(size_t i{4}; i<input.length(); i++) m_value.push_back(input.at(i));
         if(input.at(input.length()-1)!='|') m_value.push_back(input.at(input.length()-1));
@@ -403,11 +398,11 @@ class Token
             if(input.at(i)!='|') return true;
         }
         return false;
-    }    
+    }
     ///////////////////////////////////////////////
     [[nodiscard]] static bool isSubexpr(std::string &input)
     {
-        if(input.find(')')!=std::string::npos && input.length()<2) return false;
+        if(input.contains(')') && input.length()<2) return false;
         if(input.at(0)=='(')
         {
             input.erase(0, 1);
@@ -419,8 +414,8 @@ class Token
     [[nodiscard]] static std::string replaceConstants(const std::string &input)
     {
 
-        if(globals::constants.find(input)!=globals::constants.end()) return globals::constants.find(input)->second;
-        if(globals::userVariables.find(input)!=globals::userVariables.end()) return globals::userVariables.find(input)->second;
+        if(globals::constants.contains(input)) return globals::constants.find(input)->second;
+        if(globals::userVariables.contains(input)) return globals::userVariables.find(input)->second;
 
         return input;
     }
@@ -431,7 +426,7 @@ class Token
         {
             switch(m_type)
             {
-                case tokenType::BINARYOP: 
+                case tokenType::BINARYOP:
                 {
                     if(m_value=="^" || m_value=="**") return BINARY+R_ASSOCIATIVE;
                     return BINARY+L_ASSOCIATIVE;
@@ -439,7 +434,7 @@ class Token
                 case tokenType::UNARYOP:
                 {
                     if(m_value=="-" || m_value=="NOT" || m_value=="B!" || m_value=="~") return U_PREFIX+L_ASSOCIATIVE;
-                    
+
                     else return U_POSTFIX+L_ASSOCIATIVE;
                 }
                 default: return NOP;
@@ -452,7 +447,7 @@ class Token
         else return NOP;
     }
     ///////////////////////////////////////////////
-    [[nodiscard]] static tokenCategory determineTokenCategory(tokenType type) 
+    [[nodiscard]] static tokenCategory determineTokenCategory(tokenType type)
     {
         if(type==tokenType::NUMBER || type==tokenType::VARIABLE || type==tokenType::CONSTANT) return tokenCategory::NUMBER;
 
@@ -461,7 +456,7 @@ class Token
         if(type==tokenType::BINARYOP || type==tokenType::UNARYOP || type==tokenType::CUSTOMOP)                     return tokenCategory::OPERATOR;
 
         if(type==tokenType::INVALID)                                                                               return tokenCategory::INVALID;
-        
+
         return tokenCategory::SUBEXPR;
     }
     ///////////////////////////////////////////////
@@ -483,7 +478,7 @@ class Token
             case tokenCategory::SUBEXPR: return SUBEXPRESSIONS;
             case tokenCategory::FUNCTION: return FUNCTIONS;
             default: return INVALID;
-        } 
+        }
     }
 
     [[nodiscard]] operatorAttributes opAttribs()
@@ -491,9 +486,9 @@ class Token
         return m_info;
     }
 
-    Token(std::string value)
+    explicit Token(std::string value)
     {
-        
+
         if(globals::options.graph) // The things you do to make graphing faster...
         {
             if(value=="(0,1")
@@ -509,12 +504,12 @@ class Token
             tokenType potentialNumberType{tokenType::INVALID};
             if(isRealNumber(value,true))
             {
-                
+
                 m_type=tokenType::NUMBER;
                 m_category=tokenCategory::NUMBER;
                 m_precedence=INVALID;
                 m_info=operatorAttributes::NOP;
-                
+
                 m_num=sscanfWrapper("("+m_value+",0");
                 return;
             }
@@ -530,18 +525,16 @@ class Token
                 return;
             }
 
-            if(globals::userVariables.find(value)!=globals::userVariables.end() || globals::constants.find(value)!=globals::constants.end())
+            if(globals::userVariables.contains(value) || globals::constants.contains(value))
             {
                 potentialNumberType=tokenType::CONSTANT;
                 m_value=replaceConstants(value);
                 if(m_value=="rnd" || m_value=="rndint") potentialNumberType=tokenType::INVALID;
             }
-            if(potentialNumberType!=tokenType::INVALID && potentialNumberType!=tokenType::CONSTANT) 
+            if(potentialNumberType!=tokenType::INVALID && potentialNumberType!=tokenType::CONSTANT)
             {
-                if(isComplexNum) potentialNumberType=tokenType::CONSTANT;
-                
-                if(value.find(',')!=std::string::npos) m_num=sscanfWrapper(value);
-                else if(value.find('(')==std::string::npos) m_num=sscanfWrapper("("+value+",0");
+                if(value.contains(',')) m_num=sscanfWrapper(value);
+                else if(!value.contains('(')) m_num=sscanfWrapper("("+value+",0");
                 else
                 {
                     m_num=sscanfWrapper(value);
@@ -553,11 +546,11 @@ class Token
                     m_category=tokenCategory::NUMBER;
                     return;
                 }
-                
+
             }
             else if(potentialNumberType==tokenType::CONSTANT)
             {
-                if(m_value.find(',')!=std::string::npos) m_num=sscanfWrapper(m_value);
+                if(m_value.contains(',')) m_num=sscanfWrapper(m_value);
                 else m_num=sscanfWrapper("("+m_value+",0");
                 m_type=tokenType::CONSTANT;
                 m_category=tokenCategory::NUMBER;
@@ -567,7 +560,7 @@ class Token
 
         m_type=determineType(value);
         if(m_type==tokenType::CONSTANT) m_value=replaceConstants(value);
-        
+
         m_category=determineTokenCategory(m_type);
         m_precedence=precedence();
         m_info=determineOperatorAttributes();
@@ -592,7 +585,7 @@ class Token
             m_value=var.second;
         }
         else m_value="("+var.second+",0";
-        if(!skip) 
+        if(!skip)
         {
             m_num=sscanfWrapper(m_value);
         }
@@ -600,14 +593,7 @@ class Token
         m_info=determineOperatorAttributes();
     }
 
-    Token(const std::string &value, const Operation &op)
-    {
-        m_value=value;
-        m_type=tokenType::CUSTOMOP;
-        m_category=tokenCategory::OPERATOR;
-        m_info=op.m_info;
-        m_precedence=op.m_precedence;
-    }
+    Token(std::string value, const Operation &op) : m_value(std::move(value)), m_type(tokenType::CUSTOMOP), m_info(op.m_info), m_category(tokenCategory::OPERATOR), m_precedence(op.m_precedence){}
 
     Token(const std::string &value, tokenType type)
     {
@@ -624,12 +610,12 @@ class Token
         if(type==tokenType::CONSTANT)
         {
             m_value=replaceConstants(value);
-            if(globals::nonNumericalConstants.find(m_value)==globals::nonNumericalConstants.end())
+            if(!globals::nonNumericalConstants.contains(m_value))
             {
                 m_num=sscanfWrapper(m_value);
             }
         }
-        else if(type==tokenType::NUMBER && globals::options.graph) 
+        else if(type==tokenType::NUMBER && globals::options.graph)
         {
             m_num=sscanfWrapper("("+value+",0");
             m_value=value;
@@ -665,7 +651,7 @@ class Token
             if(globals::nonNumericalConstants.find(value)==globals::nonNumericalConstants.end())
             m_num=sscanfWrapper(m_value);
         }
-        else if(type==tokenType::NUMBER) 
+        else if(type==tokenType::NUMBER)
         {
             m_num=sscanfWrapper("("+value+",0");
             m_value=value;
@@ -682,25 +668,13 @@ class Token
         m_precedence=precedence();
         m_info=determineOperatorAttributes();
     }
-    
-    Token(cpp_complex<maxPrecision> &value)
-    {
-        m_type=tokenType::NUMBER;        
-        m_category=tokenCategory::NUMBER;
-        m_value=value.str(maxPrecision);
-        m_precedence=precedence();
-        m_info=determineOperatorAttributes();
-    }
+
+    explicit Token(cpp_complex<maxPrecision> &value) :
+    m_type(tokenType::NUMBER), m_info(determineOperatorAttributes()), m_category(tokenCategory::NUMBER), m_precedence(precedence()), m_value(value.str(maxPrecision)){}
 
 
-    Token(graphNum value)
-    {
-        m_type=tokenType::NUMBER;        
-        m_category=tokenCategory::NUMBER;
-        m_num=value;
-        m_precedence=precedence();
-        m_info=determineOperatorAttributes();
-    }
+    explicit Token(graphNum value) :
+    m_type(tokenType::NUMBER), m_info(determineOperatorAttributes()), m_category(tokenCategory::NUMBER), m_precedence(precedence()), m_num(value){}
     ///////////////////////////////////////////////
     template<typename T>
     [[nodiscard]] T number(T xValue=NAN) const
@@ -721,7 +695,7 @@ class Token
         else return NAN;
     }
     ///////////////////////////////////////////////
-    std::string value() const
+    [[nodiscard]] std::string value() const
     {
         if(!m_value.empty()) return m_value;
         else
@@ -731,12 +705,12 @@ class Token
             oss<<m_num;
             return oss.str();
         }
-    }  
-    tokenType type() const
+    }
+    [[nodiscard]] tokenType type() const
     {
         return m_type;
     }
-    tokenCategory category() const
+    [[nodiscard]] tokenCategory category() const
     {
         return m_category;
     }
@@ -798,7 +772,7 @@ std::string formatNumber(std::string result, const Options &options, const bool 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-[[nodiscard]] inline std::string replaceUnicode(std::string equation) 
+[[nodiscard]] inline std::string replaceUnicode(std::string equation)
 {
     for(size_t i{}; i<equation.length(); i++)
     {
@@ -856,11 +830,11 @@ inline bool evaluateEquation(Options &options, bool passedInAsArg, bool passedCa
     resultAsOSStream.precision(maxPrecision);
     getTokens("", true);
 
-    if(equation.find('#') != std::string::npos) equation.erase(equation.find('#'));
+    if(equation.contains('#')) equation.erase(equation.find('#'));
 
-    if(equation.length() == 0) return globals::error;
+    if(equation.empty()) return globals::error;
 
-    if(!options.graph && equation=="fish." || equation=="fish") // Fish.
+    if((!options.graph && equation=="fish.") || equation=="fish") // Fish.
     {
         result += "fish.";
         return globals::error;
@@ -869,7 +843,7 @@ inline bool evaluateEquation(Options &options, bool passedInAsArg, bool passedCa
     equation=cleanInput(replaceUnicode(equation));
 
 
-    if(equation.length() == 0)
+    if(equation.empty())
     {
         globals::error = true;
         result += "No valid input\n";
@@ -1282,7 +1256,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
 
     for(; i<input.length(); i++)
     {
-        if(currentToken.empty() && (input.find(functionName, i)==i || functionName=="")) 
+        if(currentToken.empty() && (input.find(functionName, i)==i || functionName==""))
             for(; i<input.length(); i++)
             {
                 if(!inFunctionCall)
@@ -1294,9 +1268,9 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
                 }
                 if(i<input.length()-1 && input.at(i)==',' && nestingLevel==1 && input.at(i+1)!=')') argFound++;
 
-                if((i<input.length()-1 && nestingLevel==0 && input.at(i)=='(' && input.at(i+1)==')') || 
+                if((i<input.length()-1 && nestingLevel==0 && input.at(i)=='(' && input.at(i+1)==')') ||
                    (i==input.length()-1 && nestingLevel==0 && input.at(i)=='(')) argFound=0; // No arguments
-                   
+
                 if(input.at(i)==')') nestingLevel--;
                 else if(input.at(i)=='(') nestingLevel++;
                 currentToken.push_back(input.at(i));
@@ -1312,7 +1286,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
                     }
                     else
                     {
-                        if(globals::multiArgFunctions.find(functionName)!=globals::multiArgFunctions.end()) 
+                        if(globals::multiArgFunctions.find(functionName)!=globals::multiArgFunctions.end())
                             tokens.emplace_back(currentToken,globals::multiArgFunctions.at(functionName));
                         else tokens.emplace_back(currentToken,tokenType::CUSTOMFN);
                         // else std::cout<<"How??\n";
@@ -1333,19 +1307,19 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
 // Pretty much a lexer.
 [[nodiscard]] inline std::vector<Token> getTokens(const std::string &input, bool resetFirstRun, bool noMemoize, const std::unordered_map<std::string, std::string> &customCallParams)
 {
-    
+
     for(std::pair<std::string,Function> fn : globals::userFunctions)
     {
         if(globals::prevUserFunctions.find(fn.first)==globals::prevUserFunctions.end())
         {
             noMemoize=true;
-            globals::tokenMemory.clear();   
+            globals::tokenMemory.clear();
             break;
         }
-        else if(fn.second.definition!=globals::userFunctions.at(fn.first).definition) 
+        else if(fn.second.definition!=globals::userFunctions.at(fn.first).definition)
         {
             noMemoize=true;
-            globals::tokenMemory.clear();   
+            globals::tokenMemory.clear();
             break;
         }
     }
@@ -1354,13 +1328,13 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
         if(globals::prevUserOperations.find(op.first)==globals::prevUserOperations.end())
         {
             noMemoize=true;
-            globals::tokenMemory.clear();   
+            globals::tokenMemory.clear();
             break;
         }
-        else if(op.second.m_def!=globals::userOperations.at(op.first).m_def) 
+        else if(op.second.m_def!=globals::userOperations.at(op.first).m_def)
         {
             noMemoize=true;
-            globals::tokenMemory.clear();   
+            globals::tokenMemory.clear();
             break;
         }
     }
@@ -1376,11 +1350,11 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
         firstRun=true;
         return std::vector<Token>();
     }
-    
+
     int nestingLevel{};
     int absNestingLevel{};
     std::vector<Token> tokens{};
-    
+
     std::string currentToken{};
     bool fixOffByOne{};
     bool inFunctionCall{};
@@ -1408,8 +1382,8 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
                 globals::error=true;
                 break;
             }
-            if((nestingLevel==0 && absNestingLevel==0 && nestingLevel==0 && input.at(i)=='|') || 
-               (i==input.length()-1)) 
+            if((nestingLevel==0 && absNestingLevel==0 && nestingLevel==0 && input.at(i)=='|') ||
+               (i==input.length()-1))
             {
                 currentToken.push_back(input.at(i));
                 tokens.emplace_back(currentToken,tokenType::ABS);
@@ -1424,7 +1398,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
         bool contin{};
         for(size_t j{MAX_KEYWORD_LENGTH}; !inFunctionCall; j--)
         {
-            
+
             if(j>inputLen-i) j=inputLen-i;
             if(j<2) break;
             size_t offset{};
@@ -1442,7 +1416,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
                     globals::error=true;
                     return std::vector<Token>();
                 }
-                
+
             }
         }
         if(contin) {inFunctionCall=false; continue;}
@@ -1469,13 +1443,13 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
         if(contin) {inFunctionCall=false; continue;}
 
         // Parse Subexpression (or complex number written as (real,imag) )
-        if(currentToken.empty() && input.at(i)=='(') 
+        if(currentToken.empty() && input.at(i)=='(')
             for(; i<input.length(); i++)
             {
                 if(input.at(i)==')') nestingLevel--;
                 else if(input.at(i)=='(') nestingLevel++;
                 if(nestingLevel!=0)currentToken.push_back(input.at(i));
-                if(nestingLevel==0 || i==inputLen-1) break;                
+                if(nestingLevel==0 || i==inputLen-1) break;
             }
 
         if(customCallParams!=std::unordered_map<std::string, std::string>())
@@ -1486,7 +1460,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
             for(; j>0; j--) // Check short substrs ahead of where you are in equation in descending size and match against function argument names
             {
                 candidate=input.substr(i,j);
-                
+
                 if(customCallParams.find(candidate)!=customCallParams.end())
                 {
                     currentToken=" ";
@@ -1497,7 +1471,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
                 }
             }
         }
-        
+
         // Parse other symbols
         if(currentToken.empty())
         {
@@ -1507,7 +1481,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
             for(; j>0; j--) // Check short substrs ahead of where you are in equation in descending size and match against known symbols
             {
                 candidate=input.substr(i,j);
-                if(globals::symbols.find(candidate)!=globals::symbols.end() || 
+                if(globals::symbols.find(candidate)!=globals::symbols.end() ||
                    globals::userVariables.find(candidate)!=globals::userVariables.end() ||
                    globals::userOperations.find(candidate)!=globals::userOperations.end())
                 {
@@ -1538,10 +1512,10 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
             bool seenE{};
             bool seenDecimalPoint{};
             for(; i<inputLen && std::isdigit(input[i]) || // 5
-                
+
                 ( i+1<inputLen && input[i]=='.' && !seenDecimalPoint && std::isdigit(input[i+1]) ) || // .5
 
-                (inputLen>2 && i>0 && std::isdigit(input[i-1]) && input[i]=='e' && !seenE && 
+                (inputLen>2 && i>0 && std::isdigit(input[i-1]) && input[i]=='e' && !seenE &&
                 ((i<inputLen-2 && ( (input[i+1]=='+' || input[i+1]=='-') && std::isdigit(input[i+2]) )) || // 5e±5
                  (i<inputLen-1 && std::isdigit(input[i+1])))) // 5e5
 
@@ -1549,7 +1523,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
 
             // I am deeply sorry.
             {
-                
+
                 fixOffByOne=true;
                 if(input[i]=='.') seenDecimalPoint=true;
                 if(i+1<inputLen &&
@@ -1580,7 +1554,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
     if(!currentToken.empty()) tokens.emplace_back(currentToken);
     if(firstRun) firstRun=false;
 
-    
+
     if(tokens.size()==0) return tokens;
     // Remove some stray operators
     for(size_t i{}; i<tokens.size(); i++)
@@ -1596,11 +1570,11 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
         for(size_t i{1}; i<tokens.size(); i++)
         {
             if(
-                (tokens.at(i-1).type()==tokenType::FUNCTION || 
+                (tokens.at(i-1).type()==tokenType::FUNCTION ||
                  (tokens.at(i-1).type()==tokenType::CUSTOMOP && tokens.at(i-1).opAttribs()==FUNCTION_LIKE && tokens.at(i-1).precedence()==FUNCTIONS)
                 ) &&
                 (
-                 (tokens.at(i).category()==tokenCategory::NUMBER || (tokens.at(i).category()==tokenCategory::OPERATOR && tokens.at(i).precedence()<UNARY_MINUS)) || 
+                 (tokens.at(i).category()==tokenCategory::NUMBER || (tokens.at(i).category()==tokenCategory::OPERATOR && tokens.at(i).precedence()<UNARY_MINUS)) ||
                  (tokens.at(i).value()=="-" && !disallowMinus && i+1<tokens.size() && tokens.at(i+1).category()==tokenCategory::NUMBER) ||
                  ((tokens.at(i).value()=="**" || tokens.at(i).value()=="^") && i+1<tokens.size() && tokens.at(i+1).category()==tokenCategory::NUMBER)
                 )
@@ -1611,7 +1585,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
                 newSubexpr.append(tokens.at(i).value());
                 tokens.erase(tokens.begin()+i);
                 i--;
-                
+
             }
             else if(newSubexpr.length()>1)
             {
@@ -1619,7 +1593,7 @@ inline void parseMultiArgFunction(const std::string &input, std::vector<Token> &
                 newSubexpr="(";
                 disallowMinus=false;
             }
-            
+
         }
         if(newSubexpr.length()>1)
         {
@@ -1733,9 +1707,9 @@ T evaluateCustomBinary(Token &numberTokenLeft, Token &operation, Token &numberTo
     if(globals::userOperations.find(operation.value())==globals::userOperations.end()) return NAN;
 
     globals::activeRecursions++;
-    if(globals::activeRecursions>700) 
+    if(globals::activeRecursions>700)
     {
-        globals::error=true; 
+        globals::error=true;
         globals::errorMessage+="Exceeded recusion limit\n";
         return NAN;
     }
@@ -1753,7 +1727,7 @@ T evaluateCustomBinary(Token &numberTokenLeft, Token &operation, Token &numberTo
     oss<<numberTokenRight.number(xValue);
     params.emplace(op.m_argNames[1],oss.str());
     std::vector<Token> tokens=getTokens(globals::userOperations.find(operation.value())->second.m_def,false,true,params);
-    
+
     T result = calculation<T>(tokens, xValue,params);
     globals::activeRecursions--;
     return result;
@@ -1762,12 +1736,12 @@ T evaluateCustomBinary(Token &numberTokenLeft, Token &operation, Token &numberTo
 template<typename T> [[nodiscard]]
 T evaluateCustomUnary(Token &number, Token &operation, const T &xValue)
 {
-    
+
     if(globals::userOperations.find(operation.value())==globals::userOperations.end()) return NAN;
     globals::activeRecursions++;
-    if(globals::activeRecursions>700) 
+    if(globals::activeRecursions>700)
     {
-        globals::error=true; 
+        globals::error=true;
         globals::errorMessage+="Exceeded recusion limit\n";
         return NAN;
     }
@@ -1775,13 +1749,13 @@ T evaluateCustomUnary(Token &number, Token &operation, const T &xValue)
     static Operation op = globals::userOperations.at(operation.value());
 
     std::ostringstream oss;
-    
+
     if constexpr(std::is_same_v<T, graphNum>) oss.precision(15);
     else oss.precision(maxPrecision);
     oss<<number.number(xValue);
     params.emplace(op.m_argNames[0],oss.str());
     std::vector<Token> tokens=getTokens(globals::userOperations.find(operation.value())->second.m_def,false,true,params);
-    
+
     T result = calculation<T>(tokens, xValue,params);
     globals::activeRecursions--;
     return result;
@@ -1795,12 +1769,12 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
     {
         if(tokens.size()==0) return NAN;
-        
+
         std::ostringstream resultAsOSStream;
         if constexpr(std::is_same_v<T,graphNum>)
             resultAsOSStream.precision(std::numeric_limits<T>::digits10);
         else resultAsOSStream.precision(maxPrecision);
-            
+
         // Replace ans, rnd, rndint with numbers
         for(size_t i{}; i<tokens.size(); i++)
         {
@@ -1813,7 +1787,7 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
                 else if(tokens.at(i).value()=="rnd" || tokens.at(i).value()=="rndint")
                 {
                     std::uniform_real_distribution<> graphNumTypeDist(0,1);
-                    resultAsOSStream<<graphNumTypeDist(randomMt);
+                    resultAsOSStream<<graphNumTypeDist(globals::randomMt);
                     std::string randomAsStr {resultAsOSStream.str()};
                     if(tokens.at(i).value()=="rndint" && randomAsStr.find('.')!=std::string::npos) // To get random integers, it literally deletes the decimal point
                     {
@@ -1829,7 +1803,7 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
         resultAsOSStream.str("");
         resultAsOSStream.clear();
 
-        if(tokens.size()==1 && tokens.at(0).category()==tokenCategory::NUMBER) 
+        if(tokens.size()==1 && tokens.at(0).category()==tokenCategory::NUMBER)
         {
             return tokens.at(0).number(xValue);
         }
@@ -1839,7 +1813,7 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
         }
 
         size_t pass{SUBEXPRESSIONS};
-        for(; pass<=LOGIC1 && !globals::error && (tokens.size()>1 || tokens.at(0).category()==tokenCategory::SUBEXPR); pass++)
+        for(; pass<=CS18 && !globals::error && (tokens.size()>1 || tokens.at(0).category()==tokenCategory::SUBEXPR); pass++)
         {
             for(int i{}; i<tokens.size() && !globals::error; i++) // Stop trying when error found
             {
@@ -1847,27 +1821,27 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
 
                 auto handleOperators = [](std::vector<Token> &tokens, int &i, const T &xValue, size_t precedence, bool rightAssociate, const std::unordered_map<std::string, std::string> &fnCallParams)
                 {
-                    if (i>1 && 
-                        tokens.at(i-1).opAttribs()==BINARY+(rightAssociate ? R_ASSOCIATIVE : L_ASSOCIATIVE) && 
+                    if (i>1 &&
+                        tokens.at(i-1).opAttribs()==BINARY+(rightAssociate ? R_ASSOCIATIVE : L_ASSOCIATIVE) &&
                         precedence==tokens.at(i-1).precedence() && tokens.at(i-2).category()==tokenCategory::NUMBER && tokens.at(i).category()==tokenCategory::NUMBER)
                     {
                         handleBinary(tokens,i,xValue,fnCallParams);
                     }
-                    if (i>0 && 
+                    if (i>0 &&
                         tokens.at(i-1).opAttribs()==U_PREFIX+(rightAssociate ? R_ASSOCIATIVE : L_ASSOCIATIVE) &&
                         precedence==tokens.at(i-1).precedence() && tokens.at(i).category()==tokenCategory::NUMBER)
                     {
                         handlePrefixUnary(tokens,i,xValue,fnCallParams);
                         if(rightAssociate) i++;
                     }
-                    if (i+1<tokens.size() && 
+                    if (i+1<tokens.size() &&
                         tokens.at(i+1).opAttribs()==U_POSTFIX+(rightAssociate ? R_ASSOCIATIVE : L_ASSOCIATIVE) &&
                         precedence==tokens.at(i+1).precedence() && tokens.at(i).category()==tokenCategory::NUMBER)
                     {
                         handlePostfixUnary(tokens,i,xValue,fnCallParams);
                         if(rightAssociate) i++;
                     }
-                    
+
                 };
 
 
@@ -1882,7 +1856,7 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
                         // Account something like x^-1
                         if(i>1 && (tokens.at(i-2).value()=="^" || tokens.at(i-2).value()=="**") && tokens.at(i-1).value()=="-" && tokens.at(i).category()==tokenCategory::NUMBER)
                         {
-                            handlePrefixUnary(tokens,i,xValue,fnCallParams);            
+                            handlePrefixUnary(tokens,i,xValue,fnCallParams);
                         }
                         handleOperators(tokens,i,xValue,pass,true,fnCallParams);
                     }
@@ -1895,26 +1869,26 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
                     {
                         T evaluatedSubexpr{NAN};
                         globals::activeRecursions++;
-                        if(globals::activeRecursions>2000) 
+                        if(globals::activeRecursions>2000)
                         {
                             if(!globals::options.graph)
                             {
                                 if(globals::activeRecursions<10000)
                                 {
-                                    globals::error=true; 
-                                    globals::errorMessage+="Exceeded recusion limit\n"; 
+                                    globals::error=true;
+                                    globals::errorMessage+="Exceeded recusion limit\n";
                                 }
                                 globals::activeRecursions=10000;
                                 return NAN;
                             }
-                            else if(globals::activeRecursions>2000*((1.5*(xValue!=xValue))+0.5*globals::threadCount*(xValue==xValue)))
+                            else if((1.5*(xValue!=xValue))+0.5*globals::threadCount*(xValue==xValue))
                             {
-                                globals::error=true; 
+                                globals::error=true;
                                 globals::activeRecursions--;
                                 return NAN;
                             }
                         }
-                        
+
                         switch(tokens.at(i).type())
                         {
                             case tokenType::SUBEXPR: evaluatedSubexpr=calculation<T>(getTokens(tokens.at(i).value(),false,false,fnCallParams), xValue, fnCallParams); break;
@@ -1934,7 +1908,7 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
                             case tokenType::RNDSEL:  evaluatedSubexpr=evaluateRndsel(tokens.at(i), xValue, fnCallParams); break;
                             case tokenType::RNDINT:  evaluatedSubexpr=evaluateRndint(tokens.at(i), xValue, fnCallParams); break;
                             case tokenType::ROUND:   evaluatedSubexpr=evaluateRound(tokens.at(i), xValue, fnCallParams); break;
-                            case tokenType::TRUNC:   evaluatedSubexpr=evaluateTrunc(tokens.at(i), xValue, fnCallParams); break; 
+                            case tokenType::TRUNC:   evaluatedSubexpr=evaluateTrunc(tokens.at(i), xValue, fnCallParams); break;
                             case tokenType::ROOT:    evaluatedSubexpr=evaluateRoot(tokens.at(i), xValue, fnCallParams); break;
                             case tokenType::LOG:     evaluatedSubexpr=evaluateLog(tokens.at(i), xValue, fnCallParams); break;
                             case tokenType::IF:      evaluatedSubexpr=evaluateIf(tokens.at(i), xValue, fnCallParams); break;
@@ -1942,7 +1916,7 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
                             case tokenType::FROM_BIN:evaluatedSubexpr=evaluateFromBin<T>(tokens.at(i)); break;
                             case tokenType::FROM_OCT:evaluatedSubexpr=evaluateFromOct<T>(tokens.at(i)); break;
                             case tokenType::IN_RANGE:evaluatedSubexpr=evaluateInrange(tokens.at(i), xValue, fnCallParams); break;
-                            default:{}                
+                            default:{}
                         }
                         tokens.at(i)=Token(evaluatedSubexpr);
                         globals::activeRecursions--;
@@ -1954,7 +1928,7 @@ T calculation(std::vector<Token> tokens, const T &xValue, const std::unordered_m
         if(tokens.size()==1 && tokens.at(0).number(xValue)==T(-0)) tokens.at(0)=Token(tokenType::NUMBER,"0");
         if(tokens.size()==1 && tokens.at(0).type()==tokenType::VARIABLE) return xValue;
         if(tokens.size()==1 && (tokens.at(0).type()==tokenType::NUMBER|| tokens.at(0).type()==tokenType::CONSTANT)) return tokens.at(0).number(xValue);
-        
+
 
         // if(globals::errorMessage=="" && !globals::passedCalculationsFile) globals::errorMessage+="Malformed expression\n";
         // globals::error=true;
@@ -1987,7 +1961,7 @@ bool evaluateArgs( const Token &arg, const T &xValue, std::vector<T>&argVals, co
             currentToken.clear();
         }
     }
-    if(!currentToken.empty()) 
+    if(!currentToken.empty())
     {
         argVals.emplace_back(calculation<T>(getTokens(currentToken,false,false, fnCallParams), xValue, fnCallParams));
     }
@@ -2007,18 +1981,18 @@ T evaluateFromHex( const Token &arg)
 {
     std::string asHex = arg.value();
     if(asHex.length()<1) return NAN;
-    if(asHex.find("0x")==0) asHex.erase(0,2);
+    if(asHex.starts_with("0x")) asHex.erase(0,2);
     if(asHex[asHex.length()-1]==')') asHex.pop_back();
     for(size_t i{}; i<asHex.length(); i++)
     {
         char c = asHex[i];
-        if(c>='a' && c<='f') 
+        if(c>='a' && c<='f')
         {
-            asHex[i]=c-'a'+'A'; 
+            asHex[i]=c-'a'+'A';
             c = asHex[i];
         }
-        
-        
+
+
         if(!(c>='0' && c<='9') && !(c>='A' && c<='F'))
         {
             for(size_t i{}; i<asHex.length(); i++)
@@ -2047,7 +2021,7 @@ T evaluateFromBin( const Token &arg)
 {
     std::string asBin = arg.value();
     if(asBin.length()<1) return NAN;
-    if(asBin.find("0b")==0) asBin.erase(0,2);
+    if(asBin.starts_with("0b")) asBin.erase(0,2);
     if(asBin[asBin.length()-1]==')') asBin.pop_back();
     for (char c : asBin)
     {
@@ -2070,8 +2044,7 @@ T evaluateFromBin( const Token &arg)
 template <typename T>
 T evaluateFromOct( const Token &arg)
 {
-    std::stringstream sstream;
-    
+
     std::string asOct = arg.value();
     if(asOct.length()<1) return NAN;
     if(asOct[asOct.length()-1]==')') asOct.pop_back();
@@ -2101,7 +2074,7 @@ T evaluateMean( const Token &arg, const T &xValue, const std::unordered_map<std:
 {
     T result{};
     std::vector<T> argVals;
-    if(evaluateArgs(arg, xValue, argVals, fnCallParams)) return NAN; 
+    if(evaluateArgs(arg, xValue, argVals, fnCallParams)) return NAN;
     for(size_t i{}; i<argVals.size(); i++)
     {
         result+=argVals.at(i);
@@ -2117,7 +2090,7 @@ template <typename T>
 T evaluateMedian( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         std::vector<T> argVals;
         if(evaluateArgs(arg, xValue, argVals, fnCallParams)) return NAN;
 
@@ -2135,7 +2108,7 @@ template <typename T>
 T evaluateStdevp( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         std::vector<T> argVals;
         if(evaluateArgs(arg, xValue, argVals, fnCallParams)) return NAN;
 
@@ -2170,7 +2143,7 @@ T evaluateLcm( const Token &arg, const T &xValue, const std::unordered_map<std::
 {
     // #error lcm infinite loops on table calculations
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         std::ostringstream numberAsOSStream;
         if constexpr(std::is_same_v<T,cpp_complex<maxPrecision>>)
         {
@@ -2181,7 +2154,7 @@ T evaluateLcm( const Token &arg, const T &xValue, const std::unordered_map<std::
         T tempValue{};
         T numLeft{};
         T numRight{};
-        std::string numberAsString;
+
         if(evaluateArgs(arg, xValue, argVals, fnCallParams)) return NAN;
         for(size_t i{}; i<argVals.size(); i++)
         {
@@ -2202,7 +2175,7 @@ T evaluateLcm( const Token &arg, const T &xValue, const std::unordered_map<std::
         {
             tempValue=argVals.at(1); //b
             argVals.at(1)=fmod(argVals.at(0).real(),argVals.at(1).real());
-            argVals.at(0)=tempValue; 
+            argVals.at(0)=tempValue;
         }
         argVals.at(0)=(numLeft*numRight)/argVals.at(0);
         argVals.erase(argVals.begin()+1);
@@ -2227,14 +2200,13 @@ template <typename T> [[nodiscard]]
 T evaluateGcf( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
-        std::ostringstream numberAsOSStream;
+    {
         std::vector<T> argVals;
         T tempValue{};
         if(evaluateArgs(arg, xValue, argVals, fnCallParams)) return NAN;
         if(globals::options.graph)
         {
-            for(size_t i{}; i<argVals.size(); i++) 
+            for(size_t i{}; i<argVals.size(); i++)
             {
                 argVals.at(i).imag(round(argVals.at(i).imag()));
                 argVals.at(i).real(round(argVals.at(i).real()));
@@ -2254,7 +2226,7 @@ T evaluateGcf( const Token &arg, const T &xValue, const std::unordered_map<std::
                     argVals.at(1).real(fmod(argVals.at(0).real(),argVals.at(1).real()));
                 if(argVals.at(1).imag()>0)
                     argVals.at(1).imag(fmod(argVals.at(0).imag(),argVals.at(1).imag()));
-                argVals.at(0)=tempValue; 
+                argVals.at(0)=tempValue;
             }
             argVals.erase(argVals.begin()+1);
         }
@@ -2268,11 +2240,11 @@ template <typename T=cpp_dec_float_100> [[nodiscard]]
 T evaluateRndint( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         std::vector<T> argVals;
-        std::string currentToken;
+
         if(evaluateArgs(arg, xValue, argVals, fnCallParams,2)) return NAN;
-        
+
         if(argVals.size()==1) return argVals.at(0).real();
 
         if(argVals.at(0).real()!=argVals.at(0).real() || argVals.at(1).real()!=argVals.at(1).real()) return NAN; // Check forNAN
@@ -2280,7 +2252,7 @@ T evaluateRndint( const Token &arg, const T &xValue, const std::unordered_map<st
         if(argVals.at(0).real()>argVals.at(1).real()) std::swap(argVals.at(0), argVals.at(1));
 
         std::uniform_int_distribution<> intDist(static_cast<int>(argVals.at(0).real()),static_cast<int>(argVals.at(1).real()));
-        return T(intDist(randomMt),0);
+        return T(intDist(globals::randomMt),0);
     }
 }
 
@@ -2290,12 +2262,12 @@ template <typename T> [[nodiscard]]
 T evaluateRndsel( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         std::vector<T> argVals;
         if(evaluateArgs(arg, xValue, argVals, fnCallParams)) return NAN;
         if(argVals.size()==0) return NAN;
         std::uniform_int_distribution<size_t> intDist(0, argVals.size()-1);
-        return argVals.at(intDist(randomMt));
+        return argVals.at(intDist(globals::randomMt));
     }
 }
 
@@ -2318,7 +2290,7 @@ template <typename T> [[nodiscard]]
 T evaluateDiff( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         std::vector<T> argVals;
         std::string currentToken;
         int nestingLevel{};
@@ -2343,7 +2315,7 @@ T evaluateDiff( const Token &arg, const T &xValue, const std::unordered_map<std:
         {
             argVals.emplace_back(calculation<T>(getTokens(currentToken), xValue+diffStepSize, fnCallParams));
             argVals.emplace_back(calculation<T>(getTokens(currentToken), xValue-diffStepSize, fnCallParams));
-            currentToken.clear();  
+            currentToken.clear();
         }
         return (argVals.at(0)-argVals.at(1))/(diffStepSize.real()*T(2));
     }
@@ -2367,13 +2339,13 @@ template <typename T>
 T evaluateInrange( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     std::vector<T> argVals;
-    std::string currentToken;
+
     if(evaluateArgs(arg, xValue, argVals, fnCallParams,3)) return NAN;
     if(argVals.size()<3) return NAN;
     auto &min=argVals[0];
     auto &expr=argVals[1];
     auto &max=argVals[2];
-    
+
     return min.real()<=expr.real() && expr.real()<=max.real();
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2382,20 +2354,19 @@ template <typename T>
 T evaluateMix( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     std::vector<T> argVals;
-    std::string currentToken;
+
     if(evaluateArgs(arg, xValue, argVals, fnCallParams,3)) return NAN;
-    
+
     else if(argVals.size()<3) return argVals.at(0);
     else if(argVals.at(2).real()>=1) return argVals.at(1);
     else if(argVals.at(2).real()<=0) return argVals.at(0);
-    
+
     else return argVals.at(0)*(T(1,0)-argVals.at(2))+argVals.at(1)*argVals.at(2);
 }
 
 template <typename T> T evaluateAtan2( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     std::vector<T> argVals;
-    std::string currentToken;
     if(evaluateArgs(arg, xValue, argVals, fnCallParams,2)) return NAN;
 
     if(argVals.size()<2) return NAN;
@@ -2410,9 +2381,8 @@ template <typename T>
 T evaluateSabs( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     std::vector<T> argVals;
-    std::string currentToken;
     if(evaluateArgs(arg, xValue, argVals, fnCallParams,2)) return NAN;
-    
+
     if(argVals.size()<2) argVals.emplace_back(0.1); // Default argument
     T enumerator=argVals.at(1)-abs(argVals.at(0));
     if(enumerator.real()<0) enumerator.real(0);
@@ -2425,7 +2395,7 @@ template <typename T> [[nodiscard]]
 T evaluateIf( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         std::vector<T> argVals;
         std::string currentToken;
         std::vector<std::string> args;
@@ -2437,14 +2407,14 @@ T evaluateIf( const Token &arg, const T &xValue, const std::unordered_map<std::s
             if(arg.value().at(i)=='(') nestingLevel++;
             else if(arg.value().at(i)==')') nestingLevel--;
             if(nestingLevel<0) break;
-            if(!(arg.value().at(i)==',' && nestingLevel==0) && i<arg.value().length()) currentToken.push_back(arg.value().at(i));
+            if((arg.value().at(i)!=',' || nestingLevel!=0) && i<arg.value().length()) currentToken.push_back(arg.value().at(i));
             else
             {
                 args.emplace_back(currentToken);
                 currentToken.clear();
             }
         }
-        if(!currentToken.empty()) 
+        if(!currentToken.empty())
         {
             args.emplace_back(currentToken);
         }
@@ -2469,7 +2439,7 @@ T evaluateRound( const Token &arg, const T &xValue, const std::unordered_map<std
 {
     std::vector<T> argVals;
     if(evaluateArgs(arg, xValue, argVals, fnCallParams,2)) return NAN;
-    
+
     if(argVals.size()==1 || (argVals.at(1).real()<1 && argVals.at(1).imag()<1)) return T(round(argVals.at(0).real()),round(argVals.at(0).imag()));
 
     if(argVals.at(1).real()>maxPrecision) argVals.at(1).real(maxPrecision);
@@ -2477,7 +2447,7 @@ T evaluateRound( const Token &arg, const T &xValue, const std::unordered_map<std
 
     if(argVals.at(1).imag()>maxPrecision) argVals.at(1).imag(maxPrecision);
     else if(argVals.at(1).imag()<0) argVals.at(1).imag(0);
-    
+
     argVals.at(1)=T(floor(argVals.at(1).real()),floor(argVals.at(1).imag()));
     if(argVals.at(0).real()==argVals.at(0).real() && abs(argVals.at(0).real())!=INFINITY) argVals.at(0).real(argVals.at(0).real()-remainder(argVals.at(0).real(),1/pow(10,argVals.at(1).real())));
     if(argVals.at(0).imag()==argVals.at(0).imag() && abs(argVals.at(1).real())!=INFINITY) argVals.at(0).imag(argVals.at(0).imag()-remainder(argVals.at(0).imag(),1/pow(10,argVals.at(1).imag())));
@@ -2494,7 +2464,7 @@ T evaluateTrunc( const Token &arg, const T &xValue, const std::unordered_map<std
 
     std::vector<T> argVals;
     if(evaluateArgs(arg, xValue, argVals, fnCallParams,2)) return NAN;
-    
+
     if(argVals.size()==1 || (argVals.at(1).real()<1 && argVals.at(1).imag()<1)) return T(trunc(argVals.at(0).real()),trunc(argVals.at(0).imag()));
 
     if(argVals.at(1).real()>maxPrecision) argVals.at(1).real(maxPrecision);
@@ -2502,10 +2472,10 @@ T evaluateTrunc( const Token &arg, const T &xValue, const std::unordered_map<std
 
     if(argVals.at(1).imag()>maxPrecision) argVals.at(1).imag(maxPrecision);
     else if(argVals.at(1).imag()<0) argVals.at(1).imag(0);
-    
+
     argVals.at(1)=T(floor(argVals.at(1).real()),floor(argVals.at(1).imag()));
     return argVals.at(0)-T(fmod(argVals.at(0).real(),1/pow(10,argVals.at(1).real())),fmod(argVals.at(0).imag(),1/pow(10,argVals.at(1).imag())));
-    
+
     // return argVals.at(0)-fmod(argVals.at(0),1/pow(10,argVals.at(1)));
 }
 
@@ -2515,13 +2485,13 @@ template <typename T>
 T evaluateRoot( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         std::vector<T> argVals;
         std::string currentToken;
         if(evaluateArgs(arg, xValue, argVals, fnCallParams,2)) return NAN;
-        
+
         if(argVals.size()==1) return sqrt(argVals.at(0)); // Default: sqrt()
-        
+
         return pow(argVals.at(0), T(1)/argVals.at(1));
     }
     else return T();
@@ -2533,10 +2503,10 @@ template <typename T>
 T evaluateLog( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         std::vector<T> argVals;
         if(evaluateArgs(arg, xValue, argVals, fnCallParams,2)) return NAN;
-        
+
         if(argVals.size()==1) argVals.emplace(argVals.begin(),10); // Default argument
         return log(argVals.at(1))/log(argVals.at(0));
     }
@@ -2546,7 +2516,7 @@ T evaluateLog( const Token &arg, const T &xValue, const std::unordered_map<std::
 template <typename T> [[nodiscard]] T evaluateCustomFn( const Token &arg, const T &xValue, const std::unordered_map<std::string, std::string> &fnCallParams)
 {
     if constexpr((std::is_same_v<T,cpp_complex<maxPrecision>> || std::is_same_v<T,graphNum>))
-    {    
+    {
         size_t offset{};
         for(size_t i{MAX_KEYWORD_LENGTH}; i>0; i--)
         {
@@ -2557,16 +2527,16 @@ template <typename T> [[nodiscard]] T evaluateCustomFn( const Token &arg, const 
             }
         }
 
-        
+
         if(offset==0) return NAN;
         Function fn=globals::userFunctions.find(arg.value().substr(0,offset))->second;
         std::vector<T> argVals;
         if(offset<arg.value().length()-1)
-        {        
+        {
             Token argWithoutName{arg.value().substr(offset+1),tokenType::INVALID};
             if(evaluateArgs(argWithoutName, xValue, argVals, fnCallParams,fn.argc)) return NAN;
         }
-        
+
         std::unordered_map<std::string,std::string> paramVariables{};
 
         std::ostringstream oss;
@@ -2582,7 +2552,7 @@ template <typename T> [[nodiscard]] T evaluateCustomFn( const Token &arg, const 
                     return NAN;
                 }
             }
-        
+
             oss.str("");
             if constexpr(std::is_same_v<T,graphNum>)
             {
@@ -2593,7 +2563,7 @@ template <typename T> [[nodiscard]] T evaluateCustomFn( const Token &arg, const 
             oss<<argVals.at(i);
             if(paramVariables.find(paramName)!=paramVariables.end()) return NAN; // Bad definition, multiple params with same name
             else paramVariables.emplace(paramName, oss.str());
-            
+
         }
 
         std::vector<Token> tokens=getTokens(globals::userFunctions.find(arg.value().substr(0,offset))->second.definition,false,true,paramVariables);
@@ -2610,7 +2580,7 @@ using intType = int64_t;
 template<typename T>
 T evaluateBinary(Token &numberTokenLeft, Token &operation, Token &numberTokenRight, const T &xValue)
 {
-    
+
     if(globals::error) return NAN;
     T x{numberTokenLeft.number(xValue)};
     T y{numberTokenRight.number(xValue)};
@@ -2638,7 +2608,7 @@ T evaluateBinary(Token &numberTokenLeft, Token &operation, Token &numberTokenRig
             case EQUALS: return x==y;
             case FMOD: return fmod(x.real(),y.real());
             case RMOD: return remainder(x.real(),y.real());
-            case NPK: 
+            case NPK:
             {
                 if(x.real()>=y.real()) return (tgamma(x.real()+1)/tgamma(x.real()-y.real()+1));
                 else return NAN;
@@ -2656,7 +2626,7 @@ T evaluateBinary(Token &numberTokenLeft, Token &operation, Token &numberTokenRig
             case NOT_EQ: return x!=y;
             case GREATER_EQ: return x.real()>=y.real();
             case LESS_EQ: return x.real()<=y.real();
-            
+
             case SHIFT_LEFT: return T(static_cast<intType>(x.real())<<static_cast<intType>(y.real()), static_cast<intType>(x.imag())<<static_cast<intType>(y.imag())); break;
             case SHIFT_RIGHT: return T(static_cast<intType>(x.real())>>static_cast<intType>(y.real()), static_cast<intType>(x.imag())>>static_cast<intType>(y.imag())); break;
             case BITWISE_AND: return T(static_cast<intType>(x.real())&static_cast<intType>(y.real()),static_cast<intType>(x.imag())&(static_cast<intType>(y.imag()))); break;
@@ -2669,7 +2639,7 @@ T evaluateBinary(Token &numberTokenLeft, Token &operation, Token &numberTokenRig
                 else if(x.real()==y.real()) result.real(0);
                 else if(x.real()<y.real()) result.real(-1);
                 else result.real(NAN);
-                
+
                 if(x.imag()>y.imag()) result.imag(1);
                 else if(x.imag()==y.imag()) result.imag(0);
                 else if(x.imag()<y.imag()) result.imag(-1);
@@ -2701,7 +2671,7 @@ T evaluateUnary(Token &numberToken, Token &operation, const T &xValue)
             // case BITWISE_NOT: return T(~static_cast<intType>(x.real()),(~static_cast<intType>(x.imag())));
             case FACTORIAL: return tgamma(x.real()+1);
             case MINUS: return -x;
-            case DOUBLE_FACTORIAL: 
+            case DOUBLE_FACTORIAL:
             {
                 // This sucks but apparently the radix of cpp_complex<MAX_PRECISION>, based on cpp_bin_float_100, is 0, so the constant thingy complains if I don't do it this way.
                 if constexpr(std::is_same_v<T,cpp_complex<maxPrecision>>)
@@ -2710,20 +2680,20 @@ T evaluateUnary(Token &numberToken, Token &operation, const T &xValue)
                 }
                 else return pow(T(2)/boost::math::constants::pi<graphNumType>(),T(1)/4.*(T(1)-cos(boost::math::constants::pi<graphNumType>()*x)))*pow(2,x/T(2))*tgamma(x.real()/2+1);
             }
-            case SINC: 
+            case SINC:
             {
                 if(x.real()!=0) return sin(x)/x;
                 else return 1;
             }
-            case SINC_SQUARED: 
+            case SINC_SQUARED:
             {
                 if(x.real()!=0) return pow(sin(x)/x,2);
                 else return 1;
             }
-            case EXP: 
+            case EXP:
             {
                 Token e{tokenType::CONSTANT,"e"};
-                return pow(e.number(xValue),x);            
+                return pow(e.number(xValue),x);
             }
             case SIGN:
             {
@@ -2780,7 +2750,7 @@ T evaluateUnary(Token &numberToken, Token &operation, const T &xValue)
                 {
                     if(fmod(x.real(),i)==0 || fmod(x.real(),i+2)==0) return false;
                 }
-                return true;            
+                return true;
             }
             case LN: return log(x);
             case LN_SQUARED: return pow(log(x),2);
@@ -2794,16 +2764,16 @@ T evaluateUnary(Token &numberToken, Token &operation, const T &xValue)
                 {
                     return floor(x.real());
                 }
-                else return round(x.real());            
+                else return round(x.real());
             }
             case ROUND: return round(x.real());
             case SAT: return (1+abs(x)-abs(x-T(1)))/2;
             case RELU: return (x+abs(x))/T(2);
-            case SSTEP: 
+            case SSTEP:
             {
                 if(x.real()>1) return 1;
                 else if(x.real()<0) return 0;
-                return pow(x,2)*(T(3)-T(2)*x);            
+                return pow(x,2)*(T(3)-T(2)*x);
             }
             case LGAMMA: return lgamma(x.real());
             case GAMMA: return tgamma(x.real());
@@ -2852,7 +2822,7 @@ T evaluateUnary(Token &numberToken, Token &operation, const T &xValue)
             case CAS: return sin(x)+cos(x);
             case CAS_SQUARED: return pow(sin(x)+cos(x),2);
 
-            
+
             default: std::cout<<"Declared, but undefined unary operator used\n";
         }
     return T();
@@ -2875,8 +2845,8 @@ inline bool isRealNumber(const std::string &input, bool disallowSpecials)
     if(input=="-") return false;
     if(input=="e") return false;
 
-    for(size_t i{}; i<input.length(); i++) if((input.at(i)<'0' || input.at(i)>'9') && 
-                                               input.at(i)!='e' && 
+    for(size_t i{}; i<input.length(); i++) if((input.at(i)<'0' || input.at(i)>'9') &&
+                                               input.at(i)!='e' &&
                                                input.at(i)!='.' &&
                                                input.at(i)!='+' &&
                                                input.at(i)!='-') return false;
@@ -2884,7 +2854,7 @@ inline bool isRealNumber(const std::string &input, bool disallowSpecials)
     size_t eCount{};
     size_t exponentLength{};
     bool seenMinus{};
-    
+
 
     for(size_t i{}; i<input.length() && eCount<2; i++)
     {
@@ -2896,16 +2866,16 @@ inline bool isRealNumber(const std::string &input, bool disallowSpecials)
             seenMinus=true;
             continue;
         }
-        if(input.at(i)=='e') 
+        if(input.at(i)=='e')
         {
-            if(i+2<input.length() && input.at(i)=='e' && (input.at(i+1)=='+' || input.at(i+1)=='-') && std::isdigit(input.at(i+2))) i+=2;
+            if(i+2<input.length() && (input.at(i+1)=='+' || input.at(i+1)=='-') && std::isdigit(input.at(i+2))) i+=2;
             eCount++;
         }
         if(input.at(i)=='.')
         {
             dotCount++;
             if(i==input.length()-1) return false;
-            if(eCount) 
+            if(eCount)
             {
                 if(!globals::passedCalculationsFile) globals::errorMessage+="Number \""+input+"\" can only have an integer exponent\n";
                 globals::error=true;
@@ -2980,7 +2950,7 @@ inline Frac decimalToFraction(cpp_complex<maxPrecision> numerator, size_t precis
         goto retry;
     }
 
-    
+
     if(occurences>1)
     {
         numerator=static_cast<cpp_complex<maxPrecision>>(number.substr(0,number.find('.')));
@@ -3118,7 +3088,7 @@ inline void addSeparatorAroundDigitGroups(std::string &num, char decimalSymbol, 
                 if(i==0) result+=",";
                 continue;
             }
-            
+
             if(curr.find(decimalSymbol)==std::string::npos)
             {
                 size_t j{};
@@ -3167,7 +3137,7 @@ inline void addSeparatorAroundDigitGroups(std::string &num, char decimalSymbol, 
                     }
                 }
             }
-            
+
             result+=curr;
             if(i==0) result+=",";
         }
@@ -3180,7 +3150,7 @@ inline void addSeparatorAroundDigitGroups(std::string &num, char decimalSymbol, 
 {
     size_t leadingSpaces{};
     size_t trailingSpaces{};
-    
+
     while(result.length()>0 && result[0]==' ')
     {
         leadingSpaces++;
@@ -3191,8 +3161,8 @@ inline void addSeparatorAroundDigitGroups(std::string &num, char decimalSymbol, 
         trailingSpaces++;
         result.pop_back();
     }
-    
-    if(result.length()<3) 
+
+    if(result.length()<3)
     {
         if(globals::useDecimalComma && (result.find('.')!=std::string::npos || result.find(',')!=std::string::npos) && !globals::error)
         {
@@ -3246,21 +3216,21 @@ inline void addSeparatorAroundDigitGroups(std::string &num, char decimalSymbol, 
     }
 
     // Check for fractions
-    if( options.prettyPrinting && !noFractions && 
-        isRealNumber(resultAsOSStream.str(),true) && 
-        !isKnownConstant && 
+    if( options.prettyPrinting && !noFractions &&
+        isRealNumber(resultAsOSStream.str(),true) &&
+        !isKnownConstant &&
         resultAsOSStream.str().find('e')==std::string::npos)
     {
         Frac frac=decimalToFraction(static_cast<cpp_complex<maxPrecision>>(resultAsOSStream.str()));
-        
+
         std::string currentResult=resultAsOSStream.str();
         resultAsOSStream.str("");
         resultAsOSStream<<frac.numer<<'/'<<frac.denom;
         static_cast<cpp_complex<maxPrecision>>(currentResult).real();
 
         // Just try a couple times
-        for(size_t i{10}; 
-            (frac.numer==INFINITY || abs(calculation<cpp_complex<maxPrecision>>(getTokens(resultAsOSStream.str(),false,true), NAN)-static_cast<cpp_complex<maxPrecision>>(currentResult)).real()>=cpp_complex<maxPrecision>(0.000000000000000000000000000000001).real()) && 
+        for(size_t i{10};
+            (frac.numer==INFINITY || abs(calculation<cpp_complex<maxPrecision>>(getTokens(resultAsOSStream.str(),false,true), NAN)-static_cast<cpp_complex<maxPrecision>>(currentResult)).real()>=cpp_complex<maxPrecision>(0.000000000000000000000000000000001).real()) &&
             i<=20; i++)
         {
             frac=decimalToFraction(static_cast<cpp_complex<maxPrecision>>(currentResult),i);
@@ -3270,7 +3240,7 @@ inline void addSeparatorAroundDigitGroups(std::string &num, char decimalSymbol, 
 
         if( frac.denom!=1 &&
             abs(frac.numer)!=INFINITY &&
-            abs(calculation<cpp_complex<maxPrecision>>(getTokens(resultAsOSStream.str(),false,true), NAN)-static_cast<cpp_complex<maxPrecision>>(currentResult).real())<cpp_complex<maxPrecision>(0.000000000000000000000000000000001).real() ) 
+            abs(calculation<cpp_complex<maxPrecision>>(getTokens(resultAsOSStream.str(),false,true), NAN)-static_cast<cpp_complex<maxPrecision>>(currentResult).real())<cpp_complex<maxPrecision>(0.000000000000000000000000000000001).real() )
         {
             isFraction=true;
             result=resultAsOSStream.str();
@@ -3317,7 +3287,7 @@ inline T sstepCmpl(T x)
 {
     if(x.real()>1) return 1;
     else if(x.real()<0) return 0;
-    return pow(x,2)*(T(3)-T(2)*x);  
+    return pow(x,2)*(T(3)-T(2)*x);
 }
 
 template<typename T>
@@ -3325,7 +3295,7 @@ inline T sstep(T x)
 {
     if(x>1) return 1;
     else if(x<0) return 0;
-    return pow(x,2)*(T(3)-T(2)*x);  
+    return pow(x,2)*(T(3)-T(2)*x);
 }
 
 template<typename T>
@@ -3351,11 +3321,11 @@ inline T round(T num, size_t digits)
     root(2+4,10-2): Root                               -> SUBEXPR
         argVals:
             [0]
-                2: Number                              -> NUMBER   
+                2: Number                              -> NUMBER
                 +: BinaryOp                            -> OPERATOR
                 4: Number                              -> NUMBER
             [1]
-                10: Number                             -> NUMBER    
+                10: Number                             -> NUMBER
                -: UnaryOp (Will later be treated as +-)-> OPERATOR
                 2: Number                              -> NUMBER
 -:UnaryOp (Will later be treated as +-)                -> OPERATOR

@@ -20,8 +20,8 @@
 #include <cstdlib>
 #include <filesystem>
 #include <ios>
-#include <stdio.h>          
-#include <stdlib.h>         
+#include <stdio.h>
+#include <stdlib.h>
 #include <string>
 #include <map>
 #include <type_traits>
@@ -65,7 +65,7 @@ static ImGui_ImplVulkanH_Window g_MainWindowData;
 static uint32_t                 g_MinImageCount = 2;
 static bool                     g_SwapChainRebuild = false;
 
-enum class sliderAnimMode
+enum class sliderAnimMode : uint8_t
 {
     TO_FRO,
     TO,
@@ -107,23 +107,23 @@ inline bool containsX(const std::string &input, Instance &instance)
 inline bool containsX(const std::string &input, lessetB::CustomSymbols &customSymbols)
 {
     // assert(input.find(' ')==std::string::npos && input.find('\t')==std::string::npos && input.find('\n')==std::string::npos);
-    if(input.length()>=1 && input.at(0)=='x') return true;
+    if(!input.empty() && input.at(0)=='x') return true;
     for(size_t i{}; i<input.length(); i++)
     {
-        std::string candidate;
         for(size_t j{MAX_KEYWORD_LENGTH}; j>0; j--)
         {
+            std::string candidate;
             if(j>input.length()-1) j=input.length()-i;
             candidate=input.substr(i,j);
-            if(lessetB::globals::symbols.find(candidate)!=lessetB::globals::symbols.end() || 
-               customSymbols.m_variables.find(candidate)!=customSymbols.m_variables.end() ||
-               customSymbols.m_operations.find(candidate)!=customSymbols.m_operations.end() ||
-               lessetB::globals::multiArgFunctions.find(candidate)!=lessetB::globals::multiArgFunctions.end())
+            if(lessetB::globals::symbols.contains(candidate) ||
+               customSymbols.m_variables.contains(candidate) ||
+               customSymbols.m_operations.contains(candidate) ||
+               lessetB::globals::multiArgFunctions.contains(candidate))
             {
-                if(lessetB::globals::multiArgFunctions.find(candidate)!=lessetB::globals::multiArgFunctions.end())
+                if(lessetB::globals::multiArgFunctions.contains(candidate))
                 {
-                    
-                    if((i+j<input.length() && input.at(i+j)=='(')) 
+
+                    if((i+j<input.length() && input.at(i+j)=='('))
                     {
                         i+=j;
                         break;
@@ -154,10 +154,10 @@ enum class symbolCreationError : char8_t
 
 inline lessetB::Function getFnFromArgs(const std::string &def, std::string &sig, Instance &instance)
 {
-    if(lessetB::isEmptyEquation(def) || containsX(def,instance)) return lessetB::Function();
+    if(lessetB::isEmptyEquation(def) || containsX(def,instance)) return {};
     std::string argName;
     std::vector<std::string> argNames;
-    if(sig.find('(')==std::string::npos || sig.find(')')==std::string::npos) return lessetB::Function();
+    if(sig.find('(')==std::string::npos || sig.find(')')==std::string::npos) return {};
 
     {
         size_t lparenCount{};
@@ -167,7 +167,7 @@ inline lessetB::Function getFnFromArgs(const std::string &def, std::string &sig,
             if(sig.at(i)=='(') lparenCount++;
             else if(sig.at(i)==')') rparenCount++;
         }
-        if(lparenCount!=1 || rparenCount!=1) return lessetB::Function();
+        if(lparenCount!=1 || rparenCount!=1) return {};
     }
 
     for(size_t i{sig.find('(')+1}; i<sig.length() && sig.at(i)!=')'; i++)
@@ -179,18 +179,18 @@ inline lessetB::Function getFnFromArgs(const std::string &def, std::string &sig,
             continue;
         }
         if(c!=',') argName.push_back(c);
-        else 
+        else
         {
             argNames.emplace_back(argName);
             argName.clear();
         }
     }
     if(!argName.empty()) argNames.emplace_back(argName);
-    for(std::string name : argNames)
+    for(const std::string& name : argNames)
     {
-        if(lessetB::globals::symbols.find(name)!=lessetB::globals::symbols.end() || lessetB::globals::multiArgFunctions.find(name)!=lessetB::globals::multiArgFunctions.end())
+        if(lessetB::globals::symbols.contains(name) || lessetB::globals::multiArgFunctions.contains(name))
         {
-            return lessetB::Function();
+            return {};
         }
     }
     lessetB::Function fn{def,argNames,argNames.size()};
@@ -207,20 +207,20 @@ inline lessetB::Function getFnFromSignature(const std::string &sig, Instance &in
             if(sig.at(i)=='(') lparenCount++;
             else if(sig.at(i)==')') rparenCount++;
         }
-        if(lparenCount!=1 || rparenCount!=1) return lessetB::Function();
+        if(lparenCount!=1 || rparenCount!=1) return {};
     }
 
-    if(sig.find('=')==std::string::npos || 
-       lessetB::isEmptyEquation(sig.substr(sig.find('=')+1)) || 
-       containsX(sig.substr(sig.find('=')+1), instance)) return lessetB::Function();
-    
+    if(sig.find('=')==std::string::npos ||
+       lessetB::isEmptyEquation(sig.substr(sig.find('=')+1)) ||
+       containsX(sig.substr(sig.find('=')+1), instance)) return {};
+
     std::string argName;
     std::vector<std::string> argNames;
     for(size_t i{sig.find('(')+1}; i<sig.length(); i++)
     {
         char c=sig.at(i);
         if(c==')') break;
-        if(!lessetB::isValidInput(c)) return lessetB::Function();
+        if(!lessetB::isValidInput(c)) return {};
         if(c!=',') argName.push_back(c);
         else
         {
@@ -229,14 +229,9 @@ inline lessetB::Function getFnFromSignature(const std::string &sig, Instance &in
         }
     }
     if(!argName.empty()) argNames.emplace_back(argName);
-    for(std::string name : argNames)
-    {
-        if(lessetB::globals::symbols.find(name)!=lessetB::globals::symbols.end() || lessetB::globals::multiArgFunctions.find(name)!=lessetB::globals::multiArgFunctions.end())
-        {
-            return lessetB::Function();
-        }
-    }
-    
+    if(std::any_of(argNames.begin(),argNames.end(),[](const auto &name)
+    {return lessetB::globals::symbols.contains(name) || lessetB::globals::multiArgFunctions.contains(name);})) return {};
+
     lessetB::Function fn{sig.substr(sig.find('=')+1),argNames,argNames.size()};
     return fn;
 }
@@ -273,16 +268,16 @@ inline symbolCreationError getOperationFromArgs(std::string &sig, const std::str
             continue;
         }
         if(c!=',') argName.push_back(c);
-        else 
+        else
         {
             argNames[argc]=argName;
             argc++;
             argName.clear();
         }
     }
-    if(!argName.empty()) 
+    if(!argName.empty())
     {
-        argNames[argc]=argName; 
+        argNames[argc]=argName;
         argc++;
     }
     if(argc==2)
@@ -306,7 +301,7 @@ inline symbolCreationError getOperationFromArgs(std::string &sig, const std::str
     if(instance.customSymbols.m_operations.find(name)!=instance.customSymbols.m_operations.end()) instance.customSymbols.m_operations.erase(name);
 
     if(lessetB::globals::symbols.find(name)!=lessetB::globals::symbols.end())
-        return BAD_NAME;    
+        return BAD_NAME;
 
     instance.customSymbols.m_operations.emplace(name,op);
     return OKAY;
@@ -331,18 +326,18 @@ inline bool addVariable(const std::pair<std::string,std::string> &newVariable, I
     if(!lessetB::isValidName(name)) return true;
     globals::oss.precision(maxPrecision);
     globals::oss.str("");
-    if(globals::symbols.find(name)!=globals::symbols.end()) return true;
-    
+    if(globals::symbols.contains(name)) return true;
+
     cpp_complex<maxPrecision> value=calculation<cpp_complex<maxPrecision>>(getTokens(newVariable.second,false,true),NAN);
     if(isEmptyEquation(newVariable.second)) value=cpp_complex<maxPrecision>(0,0);
-    
+
     globals::oss<<value;
-    if(globals::oss.str().find('(')==std::string::npos)
+    if(!globals::oss.str().contains('('))
     {
         globals::oss.str("("+globals::oss.str()+",0)");
     }
-    if(instance.customSymbols.m_operations.find(newVariable.first)!=instance.customSymbols.m_operations.end()) return true;
-    if(variableContainer.find(name)!=variableContainer.end()) variableContainer.find(name)->second=globals::oss.str();
+    if(instance.customSymbols.m_operations.contains(newVariable.first)) return true;
+    if(variableContainer.contains(name)) variableContainer.find(name)->second=globals::oss.str();
     else variableContainer.emplace(name, globals::oss.str());
     globals::tokenMemory.clear();
     return false;
@@ -352,21 +347,18 @@ struct GraphEquation
 {
     std::string eq;
     std::pair<std::string,lessetB::Function> fn;
-    ImVec4 col=ImVec4(rand()/static_cast<float>(RAND_MAX)+.3,rand()/static_cast<float>(RAND_MAX)+.3,rand()/static_cast<float>(RAND_MAX)+.3,204/255.f);
+    ImVec4 col=ImVec4((rand()/static_cast<float>(RAND_MAX))+.3,(rand()/static_cast<float>(RAND_MAX))+.3,(rand()/static_cast<float>(RAND_MAX))+.3,204/255.f);
     std::chrono::nanoseconds timePerPoint;
     bool disabled{};
-    
-    void setTimePerPoint(Instance &instance)
+
+    void setTimePerPoint(const Instance &instance)
     {
         lessetB::globals::options =  lessetB::Options{true,0,1,1,0,false,true,fn.first,false,lessetB::globals::options.ans};
-        std::string s,s2;
         std::chrono::nanoseconds delta{};
         for(size_t i{}; i<4; i++)
         {
             auto beginning = std::chrono::steady_clock::now();
-            std::unordered_map<std::string, std::string> um{};
             std::vector<lessetB::Token> tokens = lessetB::getTokens(lessetB::cleanInput(lessetB::replaceUnicode(eq)));
-            graphNum empty{};
             calculation<graphNum>(tokens,3.14+i);
             auto end = std::chrono::steady_clock::now();
             delta += std::chrono::duration_cast<std::chrono::nanoseconds>(end-beginning);
@@ -380,22 +372,22 @@ struct GraphEquation
 };
 
 
-#define CLEAR_BRIGHTNESS 0.05f       // 0 ≤ CLEAR_BRIGHTNESS ≤ 1
-#define TRIMMED_DECIMAL_PLACES 2     // Decimal places trimmed from coordinates display for special points
-#define HIGH_PRECISION_DRAW_DELAY 50 // Delay in frames between no movement and recalculating of graphs at full precision
-#define MANY_GRAPHS 100              // When the checkbox allowing the disabling of all graphs is added
-#define MAX_COMMANDS 100000          // Hard cap for scripts
-#define MAX_GRAPH_POINTS_BASE 12000   // Medium graphing precision, other precisions are based off of this one
-#define MAIN_INSTANCE 0
-#define ROW_HEIGHT 26
+constexpr float CLEAR_BRIGHTNESS = 0.05f;       // 0 ≤ CLEAR_BRIGHTNESS ≤ 1
+constexpr size_t TRIMMED_DECIMAL_PLACES= 2;     // Decimal places trimmed from coordinates display for special points
+constexpr size_t HIGH_PRECISION_DRAW_DELAY= 50; // Delay in frames between no movement and recalculating of graphs at full precision
+constexpr size_t MANY_GRAPHS= 100;              // When the checkbox allowing the disabling of all graphs is added
+constexpr size_t MAX_COMMANDS= 100000;          // Hard cap for scripts
+constexpr size_t MAX_GRAPH_POINTS_BASE=12000;   // Medium graphing precision, other precisions are based off of this one
+constexpr size_t MAIN_INSTANCE= 0;
+constexpr size_t ROW_HEIGHT= 26;
 // In Nanoseonds, the target around which the amount of points for a certain graph should be oriented.
 // In essence, laggier graphs get less points, as their time per point is higher, how aggressively depends on this.
-#define TARGET_PER_POINT_TIME 30000.
-#define MAX_POINT_REDUCTION 8
+constexpr double TARGET_PER_POINT_TIME = 30000;
+constexpr size_t MAX_POINT_REDUCTION = 8;
 
 // I can't describe these very well. They're used in finding discontinuities.
-#define MAX_CHANGE_FACTOR_FIRST 6 
-#define MAX_CHANGE_FACTOR_SECOND 3 
+constexpr size_t MAX_CHANGE_FACTOR_FIRST = 6;
+constexpr size_t MAX_CHANGE_FACTOR_SECOND = 3;
 
 
 
@@ -404,7 +396,7 @@ void updateSliders(size_t &timeStationary, std::vector<Instance> &instances, boo
 bool isNoisy(const std::vector<double> &pointsX, const std::vector<double> &pointsY, size_t i, int maxIndividualGraphPointsMultiplier);
 bool addVariable(Instance &data,const std::pair<std::string,std::string> &newVariable);
 int addClosingParentheses(std::string &equation);
-void addSeparatorsAfterFunctions(std::string &input, const Instance &instance, const std::string separator);
+void addSeparatorsAfterFunctions(std::string &input, const Instance &instance, std::string separator);
 void cleanWhitespace(std::string &input);
 bool isPreviousPlotHidden();
 bool isCurrentPlotHidden();
@@ -412,13 +404,13 @@ void displayLimitsUI(const ImPlotRect& limits, lessetB::Options &options);
 void displayAxisUI();
 void displayGridUI(const ImPlotRect &limits);
 void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &options, std::vector<Instance> &instances, bool &recalculateGraphs,
-                  size_t &currInst, std::string &filePath, bool restricted=false, bool writeOutput=true);
+                  size_t &currInst, const std::string &filePath, bool restricted=false, bool writeOutput=true);
 void writeSave(lessetB::Options &options);
 void writeGraphsScript(const std::string &path,const std::vector<GraphEquation> &graphEquations, const std::string &filename);
 void readSave(lessetB::Options &options);
 bool ImVec4Equal(const ImVec4 &a, const ImVec4 &b, bool cmpAlpha=true);
-void replaceWithUnicode(std::string &input, 
-                        const std::unordered_map<std::string, lessetB::tokenType> &symbols, 
+void replaceWithUnicode(std::string &input,
+                        const std::unordered_map<std::string, lessetB::tokenType> &symbols,
                         const std::unordered_map<std::string, lessetB::tokenType> &multiArgFunctions,
                         const lessetB::CustomSymbols &customSymbols);
 
@@ -442,7 +434,7 @@ void displayTechincalHelpMenu();
 
 void toCopyButtonEachLine(std::string &str);
 void toCopyButtonEachLine(std::string &str, size_t width);
-[[nodiscard]] size_t calcMaxLineButtonWidth(std::string &str);
+[[nodiscard]] size_t calcMaxLineButtonWidth(const std::string &str);
 std::string getPriorityName(const lessetB::pass priority);
 void resetGraphingData(std::vector<GraphEquation> &graphEquations, std::pair<std::vector<std::vector<double>>, std::vector<std::vector<double>>> &graphsPoints);
 [[nodiscard]] std::string formatCoords(const GraphEquation &graphEquation, double x, double y, const lessetB::Options &options, bool withEquation=false);
@@ -453,7 +445,7 @@ void graphsMenuTopBarUI(bool &showGraphingMenuHint, std::vector<GraphEquation> &
                std::pair<std::vector<std::vector<double>>, std::vector<std::vector<double>>> &graphsPoints, lessetB::Options &options,
                std::vector<Instance> &instances, bool &recalculateGraphs, size_t &currInst);
 #ifdef LESSET_INCLUDE_DEBUG
-void debugMenu(std::vector<GraphEquation> &graphEquations, std::vector<Instance> &instances, size_t &currInst, const std::pair<std::vector<std::vector<double>>,std::vector<std::vector<double>>> &graphsPoints);
+void debugMenu(std::vector<GraphEquation> &graphEquations, std::vector<Instance> &instances, size_t &currInst, const std::pair<std::vector<std::vector<double>>,std::vector<std::vector<double>>> &graphsPoints, size_t activeEquationsSize);
 #endif
 std::string colVecToHex(ImVec4 col);
 bool isPartOfHexValue(const std::string &str);
@@ -818,7 +810,7 @@ int main(int argc, char **argv)
     glfwGetFramebufferSize(window, &w, &h);
     ImGui_ImplVulkanH_Window* wd = &g_MainWindowData;
     SetupVulkanWindow(wd, surface, w, h);
-    
+
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -887,9 +879,9 @@ int main(int argc, char **argv)
     constexpr std::array<float,2> defaultBoundsX{-10,10};
     constexpr std::array<float,2> defaultBoundsY{-10,10};
 
-    // Display some text upon viewing a table calculation for the first time to use the graph menu for graphing, 
+    // Display some text upon viewing a table calculation for the first time to use the graph menu for graphing,
     // suspecting the user might've wanted to graph by typing into the regular calculation bar.
-    bool showGraphingMenuHint{true}; 
+    bool showGraphingMenuHint{true};
     bool showTrivia{};
 
 
@@ -902,7 +894,6 @@ int main(int argc, char **argv)
     std::string lastNonEmptyEquation;
     std::vector<GraphEquation> graphEquations;
     std::string graphEquation;
-    std::string nonEmptyGraphEquation;
     // Main entry field
     std::string equation;
     std::string nonEmptyEquation;
@@ -912,13 +903,12 @@ int main(int argc, char **argv)
     std::string resultHistory;
 
     // Graphing
-    float pastPrecisionDivisors[100]{};
     size_t timeStationary{};
     size_t recalculateGraphIndex{static_cast<size_t>(-1)};
-    int maxIndividualGraphPoints {MAX_GRAPH_POINTS_BASE}; // Maximum number of points per graph calculated for one screen. (There may be more because of memoization when zooming out) 
+    int maxIndividualGraphPoints {MAX_GRAPH_POINTS_BASE}; // Maximum number of points per graph calculated for one screen. (There may be more because of memoization when zooming out)
 
     std::pair<std::vector<std::vector<double>>,std::vector<std::vector<double>>> graphsPoints{}; // Big boy
-    
+
     // Unsaved Settings / Runtime Settings
     lessetB::Options options{false,-5,5,boost::multiprecision::cpp_complex<lessetB::maxPrecision>(1,0),2,true,true,"",true,""};
     bool gayMode{};
@@ -927,7 +917,7 @@ int main(int argc, char **argv)
 
     bool logarithmicX{};
     bool logarithmicY{};
-    
+
     bool interpolateDiscontinuities{};
 
     std::string aroundTruthinessLeniency="0.01";
@@ -943,21 +933,21 @@ int main(int argc, char **argv)
     bool drawMany_Graphs{true}; // cake_Case
 
     std::vector<Instance> instances{{"main"}};
-    
+
     bool recalculateGraphs{};
 
     // Scripting
     size_t currInst{};
-    
-    
+
+
     float hueModifier{0.586};
     float saturationModifier{0.7};
-    
-    size_t previousGraphsEquationsSize{};
+
+    size_t previousActiveEquationsSize{};
     int tooltipRnd{};
     int tooltipRnd2{};
-    
-    
+
+
     {
         ImGuiStyle initialStyle = style;
         ImGui::LoadStyleFrom("LessetStyle.ini");
@@ -1033,13 +1023,22 @@ int main(int argc, char **argv)
             ImGui::SetNextWindowPos(ImVec2(0,0));
             style.WindowRounding=0.f;
             lessetB::globals::activeRecursions = 0;
+            size_t activeEquationsSize{graphEquations.size()};
+            if(graphEquations.size()<MANY_GRAPHS)
+            {
+                activeEquationsSize=0;
+                for(const auto &eq : graphEquations)
+                {
+                    if(!lessetB::isEmptyEquation(eq.eq) && !eq.disabled) activeEquationsSize++;
+                }
+            }
 
             // Default first graph to button color every frame
             bool defaultFirstGraphColor=graphEquations.size()>0 && ImVec4Equal(graphEquations.at(0).col,style.Colors[ImGuiCol_Button],false);
 
             ImGui::Begin("Lesset says hello!",__null,ImGuiWindowFlags_NoScrollWithMouse|ImGuiWindowFlags_MenuBar|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoBringToFrontOnFocus|ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoBackground);                          // Create a window called "Hello, world!" and append into it.
             style.WindowRounding=5.f;
-            
+
             if (ImGui::BeginMenuBar())
             {
                 // Scripting menu (These comments are to ctrl f faster lol)
@@ -1066,8 +1065,8 @@ int main(int argc, char **argv)
                         {
                             nfdu8char_t *outPath{};
                             nfdopendialogu8args_t args = {0};
-                            nfdresult_t result = NFD_OpenDialogU8_With(&outPath, &args);
-                            if(result == NFD_OKAY)
+                            nfdresult_t nfdResult = NFD_OpenDialogU8_With(&outPath, &args);
+                            if(nfdResult == NFD_OKAY)
                             {
                                 filePath=outPath;
                                 NFD_FreePathU8(outPath);
@@ -1104,11 +1103,11 @@ int main(int argc, char **argv)
                             }
                         }
 
-                        
-                        
+
+
                         ImGui::EndMenu();
                     }
-                    
+
                     ImGui::Separator();
                     if(ImGui::BeginMenu("Instances"))
                     {
@@ -1118,7 +1117,7 @@ int main(int argc, char **argv)
                             static std::string newInstanceName;
                             ImGui::SetNextItemWidth(fmax(ImGui::CalcTextSize(newInstanceName.c_str()).x+40,91));
                             ImGui::InputText("Name",&newInstanceName);
-                            
+
                             if(ImGui::Button("Add Instance"))
                             {
                                 bool nameOkay{};
@@ -1129,20 +1128,21 @@ int main(int argc, char **argv)
                                 }
                                 if(nameOkay) instances.emplace_back(newInstanceName);
                                 else showError=true;
-                            }  
+                            }
                             if(showError)
                             {
                                 ImGui::Text("Cannot use this name.");
                             }
-                            ImGui::EndMenu(); 
-                        }   
+                            ImGui::EndMenu();
+                        }
                         else showError=false;
-                        size_t width{};  
-                        for(auto instance : instances)
+                        size_t width{};
+                        for(const auto &instance : instances)
                         {
                             width=fmax(width,ImGui::CalcTextSize(instance.name.c_str()).x+20);
                         }
                         if(instances.size()>1)
+                        {
                             if(ImGui::BeginMenu("Select"))
                             {
                                 for(size_t i{}; i<instances.size(); i++)
@@ -1152,27 +1152,28 @@ int main(int argc, char **argv)
                                         currInst=i;
                                         recalculateGraphs=true;
                                     }
-                                }    
+                                }
                                 ImGui::EndMenu();
                             }
 
-                        if(instances.size()>1) if(ImGui::BeginMenu("Remove"))
-                        {
-                            size_t width{};  
-                            for(Instance instance : instances)
+                            if(ImGui::BeginMenu("Remove"))
                             {
-                                if(instance.name!="main")
-                                    width=fmax(width,ImGui::CalcTextSize(instance.name.c_str()).x+20);
-                            }
-                            for(size_t i{1}; i<instances.size(); i++)
-                            {
-                                if(ImGui::Button(instances.at(i).name.c_str(),ImVec2(width,ROW_HEIGHT)))
+                                size_t widgetWidth{};
+                                for(const auto &instance : instances)
                                 {
-                                    if(currInst==i) currInst=MAIN_INSTANCE;
-                                    instances.erase(instances.begin()+i--);
+                                    if(instance.name!="main")
+                                        widgetWidth=fmax(widgetWidth,ImGui::CalcTextSize(instance.name.c_str()).x+20);
                                 }
-                            }  
-                            ImGui::EndMenu();
+                                for(size_t i{1}; i<instances.size(); i++)
+                                {
+                                    if(ImGui::Button(instances.at(i).name.c_str(),ImVec2(widgetWidth,ROW_HEIGHT)))
+                                    {
+                                        if(currInst==i) currInst=MAIN_INSTANCE;
+                                        instances.erase(instances.begin()+i--);
+                                    }
+                                }
+                                ImGui::EndMenu();
+                            }
                         }
 
                         ImGui::EndMenu();
@@ -1181,10 +1182,10 @@ int main(int argc, char **argv)
                     // Variables Menu
                     if(ImGui::BeginMenu("Variables"))
                     {
-                        std::string label="Let";
+                        std::string label;
 
                         std::uniform_int_distribution<> intDist(0,1000);
-                        if(tooltipRnd2==0) tooltipRnd2 = intDist(lessetB::randomMt);
+                        if(tooltipRnd2==0) tooltipRnd2 = intDist(lessetB::globals::randomMt);
                         if (tooltipRnd2!=1000) label="Let";
                         else label="Lesset";
 
@@ -1197,7 +1198,7 @@ int main(int argc, char **argv)
                             ImGui::SetNextItemWidth(fmax(fmin(fmax(ImGui::CalcTextSize(newVarName.c_str()).x + 20, 48), io.DisplaySize.x / 1.5),
                                                          fmin(fmax(ImGui::CalcTextSize(newVarValue.c_str()).x + 20, 48), io.DisplaySize.x / 1.5)));
                             ImGui::InputText("Name", &newVarName);
-                            if(newVarName.length() > MAX_KEYWORD_LENGTH) newVarName = newVarName.substr(0, MAX_KEYWORD_LENGTH);
+                            if(newVarName.length() > MAX_KEYWORD_LENGTH) newVarName.resize(MAX_KEYWORD_LENGTH);
                             ImGui::SetNextItemWidth(fmax(fmin(fmax(ImGui::CalcTextSize(newVarName.c_str()).x + 20, 48), io.DisplaySize.x / 1.5),
                                                          fmin(fmax(ImGui::CalcTextSize(newVarValue.c_str()).x + 20, 48), io.DisplaySize.x / 1.5)));
                             ImGui::InputText("Value", &newVarValue);
@@ -1205,10 +1206,10 @@ int main(int argc, char **argv)
                             if(ImGui::Button("Assign"))
                             {
 
-                                if(addVariable(std::pair<std::string,std::string>(newVarName,newVarValue),instances[currInst])) 
+                                if(addVariable(std::pair<std::string,std::string>(newVarName,newVarValue),instances[currInst]))
                                     report="Cannot use this name.";
-                                
-                                else 
+
+                                else
                                 {
                                     recalculateGraphs=true;
                                     boost::multiprecision::cpp_complex<lessetB::maxPrecision> value =
@@ -1224,7 +1225,7 @@ int main(int argc, char **argv)
                         if (instances[currInst].customSymbols.m_variables.size()!=0 && ImGui::BeginMenu("Show"))
                         {
                             if(instances[currInst].customSymbols.m_variables.size()==0) ImGui::MenuItem("You have no variables.",NULL,false,false);
-                            else 
+                            else
                             {
                                 ImGui::MenuItem("Click a variable to delete it.",NULL,false,false);
                                 ImGui::Separator();
@@ -1237,7 +1238,7 @@ int main(int argc, char **argv)
                                     std::pair<std::string,
                                               SliderData>{var.first,
                                                           SliderData{
-                                                              {static_cast<float>(
+                                                              .nums={static_cast<float>(
                                                                    static_cast<boost::multiprecision::cpp_complex<lessetB::maxPrecision>>(var.second)
                                                                        .real()),
                                                                0, 10}}});
@@ -1245,7 +1246,7 @@ int main(int argc, char **argv)
                                 std::ostringstream oss;
                                 oss<<std::fixed;
                                 oss<<std::setprecision(3);
-                                
+
                                 oss<<static_cast<boost::multiprecision::cpp_complex<lessetB::maxPrecision>>(var.second).real();
                                 if(oss.str().length()>20)
                                 {
@@ -1334,7 +1335,7 @@ int main(int argc, char **argv)
 
                                 if(instances[currInst].sliders.at(var.first).nums[1]>FLT_MAX/2) instances[currInst].sliders.at(var.first).nums[1]=FLT_MAX/2;
                                 if(instances[currInst].sliders.at(var.first).nums[1]<-FLT_MAX/2) instances[currInst].sliders.at(var.first).nums[1]=-FLT_MAX/2;
-                                
+
                                 ImGui::SetNextItemWidth(300);
                                 if(ImGui::SliderFloat(std::string("##"+std::to_string(i)).c_str(),instances[currInst].sliders.at(var.first).nums.data(),instances[currInst].sliders.at(var.first).nums[1],instances[currInst].sliders.at(var.first).nums[2],"Slider"))
                                 {
@@ -1357,7 +1358,7 @@ int main(int argc, char **argv)
                             static std::string newIdentifierValueOperator;
                             if(g_formatInput)
                             {
-                                
+
                                 addClosingParentheses(newIdentifierNameOperator);
                                 if(g_formatInput) inputFormatter(newIdentifierValueOperator,instances[currInst]);
                             }
@@ -1371,7 +1372,7 @@ int main(int argc, char **argv)
 
                             priorityFmt=getPriorityName(static_cast<lessetB::pass>(priority));
 
-                            
+
                             ImGui::SetNextItemWidth(fmax(fmin(fmax(ImGui::CalcTextSize(newIdentifierNameOperator.c_str()).x+20,148),io.DisplaySize.x/1.5),fmin(fmax(ImGui::CalcTextSize(newIdentifierValueOperator.c_str()).x+20,48),io.DisplaySize.x/1.5)));
                             ImGui::InputText("Signature",&newIdentifierNameOperator);
                             ImGui::SetItemTooltip("Specifying one argument makes a unary operator, two a binary one.\ni.e.: name(b,d) for a binary operator.");
@@ -1391,11 +1392,11 @@ int main(int argc, char **argv)
                                 if(!newIdentifierNameOperator.empty() && !newIdentifierValueOperator.empty())
                                 {
                                     recalculateGraphs=true;
-                                    symbolCreationError err = getOperationFromArgs(newIdentifierNameOperator,newIdentifierValueOperator,static_cast<lessetB::pass>(priority),lessetB::operatorAttributes(1<<(3+rightAssociative)|1<<(1+postfix)),instances[currInst]);
-                                    if(std::to_underlying(err))
+                                    symbolCreationError error = getOperationFromArgs(newIdentifierNameOperator,newIdentifierValueOperator,static_cast<lessetB::pass>(priority),lessetB::operatorAttributes(1<<(3+rightAssociative)|1<<(1+postfix)),instances[currInst]);
+                                    if(std::to_underlying(error))
                                     {
                                         using enum symbolCreationError;
-                                        switch(err)
+                                        switch(error)
                                         {
                                             case BAD_NAME: assignOperatorReport="Bad operator name."; break;
                                             case BAD_PARAMS: assignOperatorReport="Bad parameter name(s)."; break;
@@ -1405,9 +1406,9 @@ int main(int argc, char **argv)
                                             default: assignOperatorReport="what"; break;
                                         }
                                     }
-                                    else 
+                                    else
                                     {
-                                        auto &op = instances[currInst].customSymbols.m_operations[newIdentifierNameOperator.substr(0,newIdentifierNameOperator.find('('))];
+                                        const auto &op = instances[currInst].customSymbols.m_operations[newIdentifierNameOperator.substr(0,newIdentifierNameOperator.find('('))];
                                         using enum lessetB::operatorAttributes;
                                         if(op.m_info==(U_PREFIX|R_ASSOCIATIVE) && op.m_precedence==lessetB::pass::FUNCTIONS)
                                             assignOperatorReport="Single-argument function \"" + newIdentifierNameOperator + "\" = " + newIdentifierValueOperator;
@@ -1422,7 +1423,7 @@ int main(int argc, char **argv)
                                 static std::string tooltip;
                                 if(newIdentifierNameOperator.find('(')!=std::string::npos)
                                     tooltip=std::format("You've defined a single argument function.\nThis means writing something like {0} 3x will behave in the same way as {0}(3x).", newIdentifierNameOperator.substr(0,newIdentifierNameOperator.find('(')).c_str());
-                                
+
                                 ImGui::Text("%s",assignOperatorReport.c_str());
                                 if(assignOperatorReport[0]=='S')
                                 {
@@ -1464,7 +1465,7 @@ int main(int argc, char **argv)
                     {
                         displayPhysicsConstantsMenu(equation);
                     }
-                    
+
                     ImGui::EndMenu();
                 }
                 ImGui::SetItemTooltip("Add certain constants to your equation.");
@@ -1475,7 +1476,7 @@ int main(int argc, char **argv)
                     graphsMenuTopBarUI(showGraphingMenuHint, graphEquations, recalculateGraphIndex, graphsPoints, options, instances, recalculateGraphs,currInst);
 
                     for(size_t i{}; i<graphEquations.size(); i++)
-                    {                        
+                    {
                         std::string fnSig=graphEquations.at(i).fn.first+"(";
                         for(size_t j{}; j<graphEquations.at(i).fn.second.argNames.size(); j++)
                         {
@@ -1488,7 +1489,7 @@ int main(int argc, char **argv)
                         editingGraphEquation=graphEquations.at(i).eq;
                         if(i>0)
                         {
-                            if(ImGui::Button(std::string("↑##" + std::to_string(i)).c_str(),ImVec2(ROW_HEIGHT,ROW_HEIGHT))) 
+                            if(ImGui::Button(std::string("↑##" + std::to_string(i)).c_str(),ImVec2(ROW_HEIGHT,ROW_HEIGHT)))
                             {
                                 std::swap(graphEquations.at(i),graphEquations.at(i-1));
                                 std::swap(graphsPoints.first.at(i),graphsPoints.first.at(i-1));
@@ -1500,7 +1501,7 @@ int main(int argc, char **argv)
                         }
                         else if(graphEquations.size()>1)
                         {
-                            if(ImGui::Button("↓",ImVec2(ROW_HEIGHT,ROW_HEIGHT))) 
+                            if(ImGui::Button("↓",ImVec2(ROW_HEIGHT,ROW_HEIGHT)))
                             {
                                 std::swap(graphEquations.at(i+1),graphEquations.at(i));
                                 std::swap(graphsPoints.first.at(i),graphsPoints.first.at(i+1));
@@ -1515,7 +1516,7 @@ int main(int argc, char **argv)
                             if(i!=0)
                             {
                                 ImGui::SameLine();
-                                if(ImGui::Button(std::string("↟##" + std::to_string(i)).c_str(),ImVec2(ROW_HEIGHT,ROW_HEIGHT))) 
+                                if(ImGui::Button(std::string("↟##" + std::to_string(i)).c_str(),ImVec2(ROW_HEIGHT,ROW_HEIGHT)))
                                 {
                                     std::swap(graphEquations.at(i),graphEquations.at(0));
                                     std::swap(graphsPoints.first.at(i),graphsPoints.first.at(0));
@@ -1528,7 +1529,7 @@ int main(int argc, char **argv)
                             else
                             {
                                 ImGui::SameLine();
-                                if(ImGui::Button(std::string("↡##" + std::to_string(i)).c_str(),ImVec2(ROW_HEIGHT,ROW_HEIGHT))) 
+                                if(ImGui::Button(std::string("↡##" + std::to_string(i)).c_str(),ImVec2(ROW_HEIGHT,ROW_HEIGHT)))
                                 {
                                     std::swap(graphEquations.at(i),graphEquations.at(graphEquations.size()-1));
                                     std::swap(graphsPoints.first.at(i),graphsPoints.first.at(graphsPoints.first.size()-1));
@@ -1539,7 +1540,7 @@ int main(int argc, char **argv)
                                 ImGui::SameLine();
                             }
                         }
-                        
+
                         ImGui::ColorEdit4(std::string("##col"+std::to_string(i)).c_str(), &graphEquations.at(i).col.x,ImGuiColorEditFlags_NoInputs);
                         if(i==0) defaultFirstGraphColor=graphEquations.size()>0 && ImVec4Equal(graphEquations.at(0).col,style.Colors[ImGuiCol_Button],false);
                         ImGui::SameLine();
@@ -1555,7 +1556,7 @@ int main(int argc, char **argv)
                             std::string editingGraphEquationFormatted=editingGraphEquation;
 
                             if(g_formatInput) inputFormatter(editingGraphEquationFormatted,instances[currInst]);
-                            
+
 
                             if(!(graphEquations.at(i).eq==editingGraphEquationFormatted || editingGraphEquationFormatted.length()>1000))
                             {
@@ -1565,11 +1566,11 @@ int main(int argc, char **argv)
                                     fnName=fnSig.substr(0,fnSig.find('('));
                                 }
                                 if(fnName!="")
-                                {                            
+                                {
                                     if(lessetB::globals::multiArgFunctions.find(fnName)==lessetB::globals::multiArgFunctions.end() &&
                                     (lessetB::globals::symbols.find(fnName)==lessetB::globals::symbols.end() || lessetB::globals::symbols.find(fnName)->second!=lessetB::tokenType::FUNCTION) )
                                     {
-        
+
                                         if(instances[currInst].customSymbols.m_functions.find(fnName)!=instances[currInst].customSymbols.m_functions.end())
                                         {
                                             if(instances[currInst].customSymbols.m_functions.find(fnName)->second.definition!=editingGraphEquation)
@@ -1586,10 +1587,10 @@ int main(int argc, char **argv)
                                     recalculateGraphs=true;
                                 }
 
-                                graphEquations.at(i).eq=editingGraphEquationFormatted; 
+                                graphEquations.at(i).eq=editingGraphEquationFormatted;
                                 graphEquations.at(i).setTimePerPoint(instances[currInst]);
                                 recalculateGraphIndex=i;
-                                
+
                             }
                         }
                         ImGui::SameLine();
@@ -1605,7 +1606,7 @@ int main(int argc, char **argv)
                             lessetB::isValidName(fnName, true);
                             // std::cout<<fnName<<'\n';
                             if(fnName!="" && fnName.find('x')==std::string::npos)
-                            {                            
+                            {
                                 if(instances[currInst].protectedFunctionDefinitions.find(fnName)==instances[currInst].protectedFunctionDefinitions.end() &&
                                 lessetB::globals::multiArgFunctions.find(fnName)==lessetB::globals::multiArgFunctions.end() &&
                                 (lessetB::globals::symbols.find(fnName)==lessetB::globals::symbols.end() || lessetB::globals::symbols.find(fnName)->second!=lessetB::tokenType::FUNCTION) )
@@ -1622,7 +1623,7 @@ int main(int argc, char **argv)
                                     else instances[currInst].customSymbols.m_functions.emplace(fnName,getFnFromArgs(graphEquations.at(i).eq,fnSig,instances[currInst]));
                                 }
                                 else ImGui::SetItemTooltip("Cannot use this name.");
-                                
+
                             }
                         }
                         ImGui::SameLine();
@@ -1655,7 +1656,7 @@ int main(int argc, char **argv)
                         {
                             ImGui::Text("Equation should not be longer than 1000 characters.\nPlease, what are you doing?");
                         }
-                    
+
                     }
 
                     // Erase functions which's definition has been removed or if it was renamed, unless defined in a script
@@ -1688,7 +1689,7 @@ int main(int argc, char **argv)
                             static size_t width{20};
                             width=fmin(width,io.DisplaySize.x/1.5);
                             width=fmax(width,150);
-                            
+
                             ImGui::SetNextItemWidth(width);
                             if(ImGui::InputText("Min", &xMin,ImGuiInputTextFlags_CharsScientific))
                             {
@@ -1705,7 +1706,7 @@ int main(int argc, char **argv)
                                 std::string tmp=xMin;
                                 if(g_formatInput) inputFormatter(xMin,instances[currInst]);
                                 width=ImGui::CalcTextSize(xMin.c_str()).x+40;
-                                lessetB::evaluateEquation(evalOptions, true, false, tmp, nothing, xMin, 
+                                lessetB::evaluateEquation(evalOptions, true, false, tmp, nothing, xMin,
                                                           instances[currInst].customSymbols.m_variables,
                                                           instances[currInst].customSymbols.m_functions,
                                                           instances[currInst].customSymbols.m_operations);
@@ -1723,12 +1724,12 @@ int main(int argc, char **argv)
                         {
                             options.xMin=static_cast<boost::multiprecision::cpp_complex<lessetB::maxPrecision>>(xMin);
                         }
-                        
-                        { 
+
+                        {
                             static size_t width{20};
                             width=fmin(width,io.DisplaySize.x/1.5);
                             width=fmax(width,150);
-                            
+
                             ImGui::SetNextItemWidth(width);
                             if(ImGui::InputText("Max", &xMax,ImGuiInputTextFlags_CharsScientific))
                             {
@@ -1745,14 +1746,14 @@ int main(int argc, char **argv)
                                 std::string tmp=xMax;
                                 if(g_formatInput) inputFormatter(xMax,instances[currInst]);
                                 width=ImGui::CalcTextSize(xMax.c_str()).x+40;
-                                lessetB::evaluateEquation(evalOptions, true, false, tmp, nothing, xMax, 
+                                lessetB::evaluateEquation(evalOptions, true, false, tmp, nothing, xMax,
                                                           instances[currInst].customSymbols.m_variables,
                                                           instances[currInst].customSymbols.m_functions,
                                                           instances[currInst].customSymbols.m_operations);
                             }
                             else width=ImGui::CalcTextSize(xMax.c_str()).x+40;
                         }
-                        
+
 
                         if(lessetB::isRealNumber(xMin) && lessetB::isRealNumber(xMax) && xMin!="" && xMax!="")
                         {
@@ -1770,7 +1771,7 @@ int main(int argc, char **argv)
                             width=fmin(width,io.DisplaySize.x/1.5);
                             width=fmax(width,150);
                             ImGui::SetNextItemWidth(width);
-                            
+
                             if(ImGui::InputText("Step", &xStep,ImGuiInputTextFlags_CharsScientific))
                             {
                                 std::string tmp=xStep;
@@ -1794,7 +1795,7 @@ int main(int argc, char **argv)
                             }
                             else width=ImGui::CalcTextSize(xStep.c_str()).x+40;
                         }
-                        
+
 
                         if(lessetB::isRealNumber(xStep) && xStep!="" && static_cast<boost::multiprecision::cpp_complex<lessetB::maxPrecision>>(xStep).real()>0)
                         {
@@ -1816,7 +1817,7 @@ int main(int argc, char **argv)
                             if(g_maxIndividualGraphPointsMultiplier<1) g_maxIndividualGraphPointsMultiplier=1;
                         }
                         std::string shownResolution="Medium";
-                        
+
                         switch(g_maxIndividualGraphPointsMultiplier)
                         {
                             case 1: {maxIndividualGraphPoints=MAX_GRAPH_POINTS_BASE/2; shownResolution="Low"; break;}
@@ -1871,9 +1872,9 @@ int main(int argc, char **argv)
                     if(ImGui::BeginMenu("Misc."))
                     {
 
-                        
-                        
-                        if(aroundTruthinessLeniencyNum.real()<0) 
+
+
+                        if(aroundTruthinessLeniencyNum.real()<0)
                         {
                             aroundTruthinessLeniencyNum=0;
                             aroundTruthinessLeniency="0";
@@ -1897,11 +1898,11 @@ int main(int argc, char **argv)
                             writeSave(options);
                         }
                         ImGui::SetItemTooltip("Show some results as fractions or constants instead of decimal numbers and separate digits into groups of three.");
-                        
+
 
                         ImGui::SetNextItemWidth(149.f);
                         // ImGui::SliderFloat("Max error for ≈",&aroundTruthinessLeniencyFloat,0,1);
-                        
+
                         if(ImGui::InputText("≈ Tolerance", &aroundTruthinessLeniency,ImGuiInputTextFlags_CharsScientific))
                         {
                             if(g_formatInput) inputFormatter(aroundTruthinessLeniency,instances[currInst]);
@@ -1930,12 +1931,12 @@ int main(int argc, char **argv)
                         ImGui::SetNextItemWidth(315);
                         if(lessetB::globals::decimalPrecision!=lessetB::maxPrecision)
                             ImGui::DragInt("##", &lessetB::globals::decimalPrecision,0.2,0,lessetB::maxPrecision,"Decimal Places in Output: %d",ImGuiSliderFlags_AlwaysClamp);
-                        else 
+                        else
                         {
                             std::uniform_int_distribution<> intDist(0,1000);
-                            if(decimalPlacesTextRnd==0) decimalPlacesTextRnd=intDist(lessetB::randomMt);
+                            if(decimalPlacesTextRnd==0) decimalPlacesTextRnd=intDist(lessetB::globals::randomMt);
                             if(decimalPlacesTextRnd!=1000) ImGui::DragInt("##", &lessetB::globals::decimalPrecision,0.2,0,lessetB::maxPrecision,"Decimal Places in Output: Max",ImGuiSliderFlags_AlwaysClamp);
-                            else 
+                            else
                             {
                                 decimalPlacesTextRnd=0;
                                 ImGui::DragInt("##", &lessetB::globals::decimalPrecision,0.2,0,lessetB::maxPrecision,"Decimal Places in Output: All of 'em",ImGuiSliderFlags_AlwaysClamp);
@@ -1948,9 +1949,9 @@ int main(int argc, char **argv)
                         {
                             if(lessetB::globals::separator=="' '") lessetB::globals::separator=" ";
                             if(lessetB::globals::separator.at(0)=='\'') lessetB::globals::separator.at(0)=' ';
-                            else if(lessetB::globals::separator.at(0)==' ') 
+                            else if(lessetB::globals::separator.at(0)==' ')
                             {
-                                if(lessetB::globals::useDecimalComma) {lessetB::globals::separator.at(0)='\'';} 
+                                if(lessetB::globals::useDecimalComma) {lessetB::globals::separator.at(0)='\'';}
                                 else lessetB::globals::separator.at(0)=',';
                             }
                             else if(lessetB::globals::separator.at(0)=='.' || lessetB::globals::separator.at(0)==',') lessetB::globals::separator.at(0)='\'';
@@ -1959,23 +1960,23 @@ int main(int argc, char **argv)
                         }
                         ImGui::SetItemTooltip("Separator character between digit groups.");
                         if(lessetB::globals::separator=="' '") lessetB::globals::separator=" ";
-                        
-                        
+
+
 
                         ImGui::EndMenu();
                     }
                     else decimalPlacesTextRnd=0;
-                    
+
                     ImGui::Separator();
 
                     if(ImGui::BeginMenu("Style")) displayStyleMenu(style, options, gayMode, showGayMode, gayModeSpeed, hueModifier, saturationModifier);
-                    
+
                     ImGui::EndMenu();
                 }
                 ImGui::SetItemTooltip("Tweak some settings.");
 
                 if(ImGui::BeginMenu("History")) displayHistory(resultHistory, options);
-                
+
                 ImGui::SetItemTooltip("View past calculations.");
 
                 if (ImGui::BeginMenu("Help"))
@@ -1985,7 +1986,7 @@ int main(int argc, char **argv)
                     if(ImGui::BeginMenu("Functions"))
                     {
                         if(ImGui::BeginMenu("Common")) displayCommonHelpMenu(equation);
-                        
+
                         if(ImGui::BeginMenu("Trig")) displayTrigHelpMenu(equation, tooltipRnd);
                         ImGui::SetItemTooltip("Squared variants (sin^2) exist too.");
 
@@ -2036,22 +2037,24 @@ int main(int argc, char **argv)
                     ImGui::EndMenu();
                 }
                 ImGui::SetItemTooltip("Learn about the calculator.");
-                if(graphEquations.size()>=MANY_GRAPHS)
+
+                if(activeEquationsSize>=MANY_GRAPHS)
                 {
                     if(ImGui::Checkbox("Draw many graphs",&drawMany_Graphs))
                     {
                         recalculateGraphs=true;
                     }
                 }
-                
-                if(graphEquations.size() > previousGraphsEquationsSize)
+
+
+                if(activeEquationsSize > previousActiveEquationsSize)
                 {
                     for(size_t i{}; i<graphEquations.size(); i++)
                     {
                         if(g_formatInput) inputFormatter(graphEquations[i], instances[currInst]);
                     }
                 }
-                previousGraphsEquationsSize=graphEquations.size();
+                previousActiveEquationsSize=activeEquationsSize;
                 if(gayMode)
                 {
                     for(size_t i{6}; i<ImGuiCol_COUNT; i++)
@@ -2062,7 +2065,7 @@ int main(int argc, char **argv)
                         col.x=col.x+gayModeSpeed/1000;
                         if(col.x>1) col.x=0;
                         ImGui::ColorConvertHSVtoRGB( col.x, col.y, col.z,style.Colors[i].x,style.Colors[i].y,style.Colors[i].z);
-                    }  
+                    }
                 }
 
                 if(instances.size()>1)
@@ -2079,7 +2082,7 @@ int main(int argc, char **argv)
                     debugMode=true;
                     static bool done{};
                     ImGui::Separator();
-                    
+
                     #ifdef LESSET_INCLUDE_DEBUG
                     if(!done && !firstFrame)
                     {
@@ -2098,20 +2101,18 @@ int main(int argc, char **argv)
                 {
                     if(ImGui::BeginMenu("Debug"))
                     {
-                        debugMenu(graphEquations, instances, currInst,graphsPoints);
+                        debugMenu(graphEquations, instances, currInst,graphsPoints, activeEquationsSize);
                         maxIndividualGraphPoints=MAX_GRAPH_POINTS_BASE*g_maxIndividualGraphPointsMultiplier;
                     }
                 }
                 #endif
                 ImGui::EndMenuBar();
             }
-
-            
             updateSliders(timeStationary, instances, recalculateGraphs, currInst);
-            
+
 
             style.FontScaleDpi = main_scale*2;
-            ImGui::PushFont(io.FontDefault, 42.0f/2);      
+            ImGui::PushFont(io.FontDefault, 42.0f/2);
             ImGui::SetNextItemWidth(io.DisplaySize.x/3);
             ImGui::InputText("##big guy",&equation); // The big one
             ImGui::PopFont();
@@ -2125,12 +2126,11 @@ int main(int argc, char **argv)
                 unclosedParentheses=addClosingParentheses(tmp);
             }
             if(unclosedParentheses<0) ImGui::SetItemTooltip("Found extra closing parentheses.");
-            
+
             if(equation!="") nonEmptyEquation=equation;
             std::string resultPlusEquals;
             if(equation!="") lastNonEmptyEquation=equation;
-            else resultPlusEquals="";
-            
+
             static boost::multiprecision::cpp_complex<lessetB::maxPrecision> resultNum{};
             if(result.find('\n')==std::string::npos) resultPlusEquals="  =  " + result;
             else resultPlusEquals="  =  ";
@@ -2180,7 +2180,7 @@ int main(int argc, char **argv)
                 showStyleEditor=true;
                 resultPlusEquals = "  =  ask and you shall receive";
             }
-            
+
             else if(equation=="enableDebug" || equation=="enαbleDebug")
             {
                 if(equation=="enαbleDebug")
@@ -2196,7 +2196,7 @@ int main(int argc, char **argv)
                 textTooWide=true;
                 ImGui::PushFont(io.FontDefault, 42.0f/(ImGui::CalcTextSize(resultPlusEquals.c_str()).x/io.DisplaySize.x*4));
             }
-            
+
             ImGui::SameLine(io.DisplaySize.x/3+11);
             static bool errLabel{};
             if(ImGui::Button(resultPlusEquals.c_str(),ImVec2(0,48)))
@@ -2208,8 +2208,8 @@ int main(int argc, char **argv)
                     errLabel=lessetB::evaluateEquation(options,false,false,nonEmptyEquation,resultHistory,result,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
                     if(!containsX(equation, instances[currInst]))resultNum=lessetB::calculation<boost::multiprecision::cpp_complex<lessetB::maxPrecision>>(lessetB::getTokens(lessetB::cleanInput(lessetB::replaceUnicode(equation))),NAN);
                 }
-            } 
-            
+            }
+
 
             if(result.find('\n')!=std::string::npos)
             {
@@ -2237,7 +2237,7 @@ int main(int argc, char **argv)
             {
                 if(resultNum.real()<=LONG_LONG_MAX && resultNum.real()>=LONG_LONG_MIN)
                 {
-                    long long asInt = static_cast<size_t>(resultNum.real());
+                    long long asInt = static_cast<long long>(resultNum.real());
                     std::stringstream stream;
                     stream<<std::hex<<asInt;
                     std::string tooltip="Hex: 0x";
@@ -2253,15 +2253,15 @@ int main(int argc, char **argv)
                     tooltip+="\nOct:  0";
                     tooltip+=stream.str();
                     stream.str("");
-                    
-                    stream<<std::bitset<sizeof(size_t)*8>(asInt);
+
+                    stream<<std::bitset<sizeof(long long)*8>(asInt);
                     tooltip+="\nBin:   0b";
                     std::string binaryRepresentation=stream.str();
                     while(binaryRepresentation.length() && binaryRepresentation[0]=='0') binaryRepresentation.erase(0,1);
                     tooltip+=binaryRepresentation;
                     if(binaryRepresentation.empty()) tooltip+="0";
                     ImGui::SetItemTooltip("%s", tooltip.c_str());
-                }                
+                }
             }
             if(textTooWide) ImGui::PopFont();
             // if(graphsEquations.size()<MANY_GRAPHS && instances.size()==1) ImGui::Text("");
@@ -2272,10 +2272,10 @@ int main(int argc, char **argv)
             const ImVec2 graphsPlotSize{io.DisplaySize.x+2,io.DisplaySize.y-85};
             if(!showStyleEditor)
             {
-                ImPlotStyle* style = &ImPlot::GetStyle();
-                style->MajorGridSize=ImVec2(0.01,0.01);
+                ImPlotStyle* plotStyle = &ImPlot::GetStyle();
+                plotStyle->MajorGridSize=ImVec2(0.01,0.01);
                 // style->Colors[ImPlotCol_AxisGrid]=ImVec4(.2,.2,.2,1);
-                style->PlotPadding=ImVec2(0,0);
+                plotStyle->PlotPadding=ImVec2(0,0);
             }
 
             if(showStyleEditor)
@@ -2295,14 +2295,14 @@ int main(int argc, char **argv)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 */
             ImGui::SetCursorPosX(-1);
-            if(ImPlot::BeginPlot("Graphs",graphsPlotSize, ImPlotFlags_Equal|ImPlotFlags_NoTitle)) 
+            if(ImPlot::BeginPlot("Graphs",graphsPlotSize, ImPlotFlags_Equal|ImPlotFlags_NoTitle))
             {
                 bool checkDiscontinuities{};
                 setupPlot(defaultBoundsX, defaultBoundsY);
                 static ImPlotRect limits{};
                 ImPlotRect prevLimits {limits.X.Min, limits.X.Max, limits.Y.Min, limits.Y.Max};
                 limits = ImPlot::GetPlotLimits();
-                
+
                 if(graphEquations.size()!=0)
                 {
                     if(graphEquations.size()!=graphsPoints.first.size() || graphEquations.size()!=graphsPoints.second.size())
@@ -2340,21 +2340,21 @@ int main(int argc, char **argv)
                         }
                     }
 
-                    double minimumPrecision{(graphEquations.size()/2.f+1)};
+                    double minimumPrecision{(activeEquationsSize/2.f+1)};
                     // #warning The conditionals for triggering recalculation might be messed up
                     // Recalculate a graph when too many points have been saved for it... or recalculate the graph of recalculateGraphIndex. Only one graph per frame being recalculated is intentional.
                     if(
                         (
-                            downsizeGraphIndex!=static_cast<size_t>(-1) && 
-                            graphEquations.size()>downsizeGraphIndex && 
-                            downsizeGraphIndex<graphsPoints.first.size() && 
-                            graphsPoints.first.size()<MANY_GRAPHS && 
+                            downsizeGraphIndex!=static_cast<size_t>(-1) &&
+                            graphEquations.size()>downsizeGraphIndex &&
+                            downsizeGraphIndex<graphsPoints.first.size() &&
+                            graphsPoints.first.size()<MANY_GRAPHS &&
                             timeStationary<HIGH_PRECISION_DRAW_DELAY
                         ) || recalculateGraphIndex!=static_cast<size_t>(-1)
                     )
                     {
                         if(recalculateGraphIndex!=static_cast<size_t>(-1)) downsizeGraphIndex=recalculateGraphIndex;
-                        {     
+                        {
                             if(graphEquations.at(downsizeGraphIndex).fn.first.empty() && !recalculateGraphs && !graphEquations.at(downsizeGraphIndex).disabled && !graphEquations.at(downsizeGraphIndex).eq.empty())
                             {
                                 #ifdef LESSET_INCLUDE_DEBUG
@@ -2364,7 +2364,7 @@ int main(int argc, char **argv)
                                     lessetB::globals::debugCoutUsed=true;
                                 }
                                 #endif
-                                nonEmptyGraphEquation=graphEquations.at(downsizeGraphIndex).eq;
+                                graphEquation=graphEquations.at(downsizeGraphIndex).eq;
                                 lessetB::Options graphOptions{true,
                                                               limits.X.Min,
                                                               limits.X.Max,
@@ -2374,11 +2374,11 @@ int main(int argc, char **argv)
                                                               interpolateDiscontinuities,
                                                               prioritizeImplicitMultiplication,
                                                               graphEquations.at(downsizeGraphIndex).fn.first};
-                                lessetB::evaluateEquation(graphOptions,true,false,nonEmptyGraphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
+                                lessetB::evaluateEquation(graphOptions,true,false,graphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
                                 checkDiscontinuities=true;
                                 graphsPoints.first.at(downsizeGraphIndex)=lessetB::globals::points.first;
                                 graphsPoints.second.at(downsizeGraphIndex)=lessetB::globals::points.second;
-                            }       
+                            }
                             else
                             {
                                 graphsPoints.first.at(downsizeGraphIndex)=std::vector<double>();
@@ -2401,7 +2401,7 @@ int main(int argc, char **argv)
                                     lessetB::globals::debugCoutUsed=true;
                                 }
                                 #endif
-                                nonEmptyGraphEquation=currEq.eq;
+                                graphEquation=currEq.eq;
                                 lessetB::Options graphOptions{true,
                                                               limits.X.Min,
                                                               limits.X.Max,
@@ -2411,7 +2411,7 @@ int main(int argc, char **argv)
                                                               interpolateDiscontinuities,
                                                               prioritizeImplicitMultiplication,
                                                               currEq.fn.first};
-                                lessetB::evaluateEquation(graphOptions,true,false,nonEmptyGraphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
+                                lessetB::evaluateEquation(graphOptions,true,false,graphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
                                 checkDiscontinuities=true;
                                 graphsPoints.first.at(i)=lessetB::globals::points.first;
                                 graphsPoints.second.at(i)=lessetB::globals::points.second;
@@ -2421,7 +2421,7 @@ int main(int argc, char **argv)
 
 
                     // Prepend/Append to graph
-                    if(timeStationary==0 && graphsPoints.first.size()<MANY_GRAPHS && !zoomedIn && !recalculateGraphs) 
+                    if(timeStationary==0 && graphsPoints.first.size()<MANY_GRAPHS && !zoomedIn && !recalculateGraphs)
                     {
                         const double dXMin{limits.X.Min-prevLimits.X.Min};
                         const double dXMinScreenProportion{abs(dXMin)/(limits.X.Max-limits.X.Min)};
@@ -2442,8 +2442,8 @@ int main(int argc, char **argv)
                                         //     lessetB::globals::debugCoutUsed=true;
                                         // }
                                         #endif
-                                        nonEmptyGraphEquation=graphEquations.at(j).eq;
-                                        
+                                        graphEquation=graphEquations.at(j).eq;
+
                                         lessetB::Options graphOptions{true,
                                                                     limits.X.Min,
                                                                     prevLimits.X.Min,
@@ -2452,7 +2452,7 @@ int main(int argc, char **argv)
                                                                     interpolateDiscontinuities,
                                                                     prioritizeImplicitMultiplication,
                                                                     graphEquations.at(j).fn.first};
-                                        lessetB::evaluateEquation(graphOptions,true,false,nonEmptyGraphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
+                                        lessetB::evaluateEquation(graphOptions,true,false,graphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
                                         checkDiscontinuities=true;
                                         graphsPoints.first.at(j).insert_range(graphsPoints.first.at(j).begin(),lessetB::globals::points.first);
                                         graphsPoints.second.at(j).insert_range(graphsPoints.second.at(j).begin(),lessetB::globals::points.second);
@@ -2478,7 +2478,7 @@ int main(int argc, char **argv)
                                         //     lessetB::globals::debugCoutUsed=true;
                                         // }
                                         #endif
-                                        nonEmptyGraphEquation=graphEquations.at(j).eq;
+                                        graphEquation=graphEquations.at(j).eq;
 
                                         lessetB::Options graphOptions{true,
                                                                     prevLimits.X.Max,
@@ -2488,7 +2488,7 @@ int main(int argc, char **argv)
                                                                     interpolateDiscontinuities,
                                                                     prioritizeImplicitMultiplication,
                                                                     graphEquations.at(j).fn.first};
-                                        lessetB::evaluateEquation(graphOptions,true,false,nonEmptyGraphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
+                                        lessetB::evaluateEquation(graphOptions,true,false,graphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
                                         checkDiscontinuities=true;
                                         graphsPoints.first.at(j).append_range(lessetB::globals::points.first);
                                         graphsPoints.second.at(j).append_range(lessetB::globals::points.second);
@@ -2521,9 +2521,9 @@ int main(int argc, char **argv)
                                  < abs(xCoordSet[xCoordSet.size()/2+1] - xCoordSet[xCoordSet.size()/2])));
                             i++;
                         }
-                        for(size_t j{}; 
-                            j<graphEquations.size() && 
-                            !(prevLimits.X.Min == limits.X.Min && prevLimits.X.Max == limits.X.Max); 
+                        for(size_t j{};
+                            j<graphEquations.size() &&
+                            !(prevLimits.X.Min == limits.X.Min && prevLimits.X.Max == limits.X.Max);
                             j++)
                         {
 
@@ -2538,7 +2538,7 @@ int main(int argc, char **argv)
                                         lessetB::globals::debugCoutUsed=true;
                                     }
                                     #endif
-                                    nonEmptyGraphEquation=graphEquations.at(j).eq;
+                                    graphEquation=graphEquations.at(j).eq;
 
                                     lessetB::Options graphOptions{true,
                                                                 limits.X.Min,
@@ -2549,7 +2549,7 @@ int main(int argc, char **argv)
                                                                 interpolateDiscontinuities,
                                                                 prioritizeImplicitMultiplication,
                                                                 graphEquations.at(j).fn.first};
-                                    lessetB::evaluateEquation(graphOptions,true,false,nonEmptyGraphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
+                                    lessetB::evaluateEquation(graphOptions,true,false,graphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
                                     checkDiscontinuities=true;
                                     graphsPoints.first[j]=lessetB::globals::points.first;
                                     graphsPoints.second[j]=lessetB::globals::points.second;
@@ -2588,7 +2588,7 @@ int main(int argc, char **argv)
                             }
                         }
                         else wouldIncreasePrecision.clear();
-                        if((graphEquations.size()>=MANY_GRAPHS && drawMany_Graphs) || graphEquations.size()<MANY_GRAPHS)
+                        if((activeEquationsSize>=MANY_GRAPHS && drawMany_Graphs) || activeEquationsSize<MANY_GRAPHS)
                         {
                             for(size_t j{}; j<graphEquations.size(); j++)
                             {
@@ -2604,7 +2604,7 @@ int main(int argc, char **argv)
                                             lessetB::globals::debugCoutUsed=true;
                                         }
                                         #endif
-                                        nonEmptyGraphEquation=graphEquations.at(j).eq;
+                                        graphEquation=graphEquations.at(j).eq;
                                         lessetB::Options graphOptions{true,
                                                                     limits.X.Min,
                                                                     limits.X.Max,
@@ -2614,7 +2614,7 @@ int main(int argc, char **argv)
                                                                     interpolateDiscontinuities,
                                                                     prioritizeImplicitMultiplication,
                                                                     graphEquations.at(j).fn.first};
-                                        lessetB::evaluateEquation(graphOptions,true,false,nonEmptyGraphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
+                                        lessetB::evaluateEquation(graphOptions,true,false,graphEquation,nothing,nothing,instances[currInst].customSymbols.m_variables, instances[currInst].customSymbols.m_functions,instances[currInst].customSymbols.m_operations);
                                         checkDiscontinuities=true;
                                         graphsPoints.first[j]=lessetB::globals::points.first;
                                         graphsPoints.second[j]=lessetB::globals::points.second;
@@ -2627,7 +2627,7 @@ int main(int argc, char **argv)
                                 }
                             }
                         }
-                    } 
+                    }
 
                     ImPlotSpec spec{};
                     spec.Flags=ImPlotItemFlags_NoFit;
@@ -2637,10 +2637,10 @@ int main(int argc, char **argv)
                     bool hasShownMousePointText{};
                     for(size_t j{}; j<graphsPoints.first.size(); j++) // Disconnect discontinuities and hand points to ImPlot
                     {
-                       
+
                         if(!isCurrentPlotHidden()) graphEquations.at(j).disabled=false;
                         if((graphEquations.size()>=MANY_GRAPHS && timeStationary<HIGH_PRECISION_DRAW_DELAY) || (graphEquations.size()>=MANY_GRAPHS && !drawMany_Graphs)) break;
-                        if(lessetB::isEmptyEquation(graphEquations.at(j).eq) || !graphEquations.at(j).fn.first.empty()) 
+                        if(lessetB::isEmptyEquation(graphEquations.at(j).eq) || !graphEquations.at(j).fn.first.empty())
                         {
                             continue;
                         }
@@ -2686,7 +2686,7 @@ int main(int argc, char **argv)
                                             // }
                                             // else
                                             // {
-                                                
+
                                             //     graphsPoints.second.at(j).insert(graphsPoints.second.at(j).cbegin()+i,NAN);
                                             //     graphsPoints.first.at(j).insert(graphsPoints.first.at(j).cbegin()+i,NAN);
                                             //     i++;
@@ -2696,7 +2696,7 @@ int main(int argc, char **argv)
                                             // }
                                         }
                                     }
-                                }                    
+                                }
                             }
                         }
 
@@ -2712,7 +2712,7 @@ int main(int argc, char **argv)
                         if(!isPreviousPlotHidden())
                         {
                             graphEquations.at(j).disabled=false;
-                            if(g_markSpecialPoints && graphEquations.size() < 25 &&  ImPlot::IsPlotHovered())
+                            if(g_markSpecialPoints && activeEquationsSize < 25 &&  ImPlot::IsPlotHovered())
                             {
                                 auto temp=markPoints(graphEquations, timeStationary, graphsPoints, options, limits, j, pointsSpec, hasShownMousePointText,closestSpecialPointToCursor);
                                 if(temp.x==temp.x)
@@ -2725,7 +2725,7 @@ int main(int argc, char **argv)
                     }
                     if(!closestSpecialPointToCursor.eq.empty())
                     {
-                        
+
                         bool textBelow = mousePointTextLocation.y+limits.Y.Max>closestSpecialPointToCursor.y;
                         ImPlot::PushStyleColor(ImPlotCol_InlayText,closestSpecialPointToCursor.col);
                         std::string coordsFormatted = formatCoords(GraphEquation(closestSpecialPointToCursor.eq), closestSpecialPointToCursor.x, closestSpecialPointToCursor.y, options);
@@ -2733,8 +2733,8 @@ int main(int argc, char **argv)
                         ImPlot::PushStyleColor(ImPlotCol_InlayText,ImVec4(1,1,1,1));
                     }
                 }
-                
-                if(g_showAxes) 
+
+                if(g_showAxes)
                 {
                     displayAxisUI();
                     displayGridUI(limits);
@@ -2744,7 +2744,7 @@ int main(int argc, char **argv)
             }
 
             if(defaultFirstGraphColor && graphEquations.size()>0) // Adjust first graph color with color changes if left default
-            { 
+            {
                 float alpha = graphEquations.at(0).col.w;
                 graphEquations.at(0).col=style.Colors[ImGuiCol_Button];
                 graphEquations.at(0).col.w=alpha;
@@ -2807,12 +2807,12 @@ bool isNoisy(const std::vector<double> &pointsX, const std::vector<double> &poin
                 if(prevRising!=rising) switches++;
             }
             prevRising=rising;
-        } 
+        }
     }
 
     if(switches<6) return false;
 
-    return true; 
+    return true;
 }
 
 char convertToHexDigit(char8_t byte)
@@ -2857,14 +2857,12 @@ std::string colVecToHex(ImVec4 col)
 void writeGraphsScript(const std::string &path,const std::vector<GraphEquation> &graphEquations)
 {
     std::ofstream script(path);
-    bool empty{true};
 
     size_t i{};
     for(GraphEquation item : graphEquations)
     {
         if(item.fn.second!=lessetB::Function())
         {
-            empty=false;
             script<<"fn "<< item.fn.first << "(";
             for(size_t i{}; i<item.fn.second.argNames.size(); i++)
             {
@@ -2876,7 +2874,6 @@ void writeGraphsScript(const std::string &path,const std::vector<GraphEquation> 
         }
         else if(!item.eq.empty())
         {
-            empty=false;
             script<<"graph "<<item.eq;
             script<<'\n';
             script<<"color "<<i<<"=#"+colVecToHex(item.col)<<'\n';
@@ -2970,12 +2967,12 @@ void readSave(lessetB::Options &options)
     if(settings.fail()) return;
     options.prettyPrinting=!!(prettyPrinting-'0');
     for(size_t i{}; i<20000 && settings.get()!='\n'; i++) if(i==20000-1) return;
-    
+
     char prioritizeImplicitMultiplication = settings.get();
     if(settings.fail()) return;
     options.prioritizeImplicitMultiplication=!!(prioritizeImplicitMultiplication-'0');
     for(size_t i{}; i<20000 && settings.get()!='\n'; i++) if(i==20000-1) return;
-    
+
     char separator = settings.get();
     if(!(separator==',' || separator=='\'' || separator==' ') || (separator==',' && lessetB::globals::useDecimalComma)) separator='\'';
     if(settings.fail()) return;
@@ -3031,7 +3028,7 @@ void readSave(lessetB::Options &options)
 }
 
 int addClosingParentheses(std::string &equation)
-{                
+{
     int unclosedParentheses{};
     for(size_t i{}; i<equation.length(); i++)
     {
@@ -3052,12 +3049,12 @@ void cleanWhitespace(std::string &input)
 {
 
     // This code belongs in the gallery of gross incompetence
-    
+
     for(size_t i{}; i<input.length(); i++) if(input.at(i)=='\t') input.erase(i--,1);
 
     if(input.length()>sizeof(U' '))
     {
-        for(size_t i{}; i<input.length(); i++) 
+        for(size_t i{}; i<input.length(); i++)
         {
             if(input.at(i)==' ')
             {
@@ -3075,14 +3072,14 @@ void cleanWhitespace(std::string &input)
     }
     for(size_t i{1}; i<uStr.length(); i++)
     {
-        if((uStr.at(i-1)==U' ' || std::isspace(uStr.at(i-1))) && (uStr.at(i)==U' ' || std::isspace(uStr.at(i)))) uStr.erase(--i,1); 
+        if((uStr.at(i-1)==U' ' || std::isspace(uStr.at(i-1))) && (uStr.at(i)==U' ' || std::isspace(uStr.at(i)))) uStr.erase(--i,1);
     }
     input.assign(uStr.begin(),uStr.end());
     if(input.length()>sizeof(U' '))
     {
         for(size_t i{}; i<input.length()-sizeof(U' '); i++)
         {
-            if(input.find(" ",i)==i && input.find(" ",i+sizeof(U' ')-1)==i+sizeof(U' ')-1) 
+            if(input.find(" ",i)==i && input.find(" ",i+sizeof(U' ')-1)==i+sizeof(U' ')-1)
             {
                 input.erase(i,sizeof(U' ')-1);
                 i-=sizeof(U' ')-1;
@@ -3090,13 +3087,13 @@ void cleanWhitespace(std::string &input)
         }
     }
 
-    while(input.length()>2 && input.find(" ",0)==0) input.erase(0,sizeof(U' ')-1);
+    while(input.length()>2 && input.starts_with(" ")) input.erase(0,sizeof(U' ')-1);
     while(input.length()>2 && input.find(" ",input.size()-sizeof(U' ')+1)==input.size()-sizeof(U' ')+1) input.erase(input.size()-sizeof(U' ')+1,sizeof(U' ')-1);
     for(int i{}; i<input.length(); i++)
     {
         if(std::isspace(input.at(i))) input.erase(i--,1);
     }
-    
+
 }
 void addSeparatorsAfterFunctions(std::string &input, const Instance &instance, std::string separator)
 {
@@ -3111,8 +3108,8 @@ void addSeparatorsAfterFunctions(std::string &input, const Instance &instance, s
         {
             candidate = input.substr(i,j);
             // std::cout<<candidate<<'\n';
-            if((lessetB::globals::multiArgFunctions.find(candidate)!=lessetB::globals::multiArgFunctions.end() && input.length()>i+candidate.length() && input[i+candidate.length()]=='(') || 
-               instance.customSymbols.m_functions.find(candidate)!=instance.customSymbols.m_functions.end() || 
+            if((lessetB::globals::multiArgFunctions.find(candidate)!=lessetB::globals::multiArgFunctions.end() && input.length()>i+candidate.length() && input[i+candidate.length()]=='(') ||
+               instance.customSymbols.m_functions.find(candidate)!=instance.customSymbols.m_functions.end() ||
                instance.customSymbols.m_variables.find(candidate)!=instance.customSymbols.m_variables.end())
             {
                 i+=candidate.length();
@@ -3121,7 +3118,7 @@ void addSeparatorsAfterFunctions(std::string &input, const Instance &instance, s
             if(lessetB::globals::symbols.find(candidate)!=lessetB::globals::symbols.end() || instance.customSymbols.m_operations.find(candidate)!=instance.customSymbols.m_operations.end())
             {
                 using enum lessetB::operatorAttributes;
-                if((instance.customSymbols.m_operations.find(candidate)!=instance.customSymbols.m_operations.end() && instance.customSymbols.m_operations.at(candidate).m_info==(U_PREFIX|R_ASSOCIATIVE) && instance.customSymbols.m_operations.at(candidate).m_precedence==lessetB::pass::FUNCTIONS) || 
+                if((instance.customSymbols.m_operations.find(candidate)!=instance.customSymbols.m_operations.end() && instance.customSymbols.m_operations.at(candidate).m_info==(U_PREFIX|R_ASSOCIATIVE) && instance.customSymbols.m_operations.at(candidate).m_precedence==lessetB::pass::FUNCTIONS) ||
                    (lessetB::globals::symbols.find(candidate)!=lessetB::globals::symbols.end() && lessetB::globals::symbols.at(candidate)==lessetB::tokenType::FUNCTION))
                 {
                     i+=candidate.length();
@@ -3221,29 +3218,29 @@ void displayLimitsUI(const ImPlotRect& limits, lessetB::Options &options)
     textSpec.Flags|=ImPlotItemFlags_NoFit;
     std::string asStr;
     // This is ass.
-    
-    if(abs(limits.X.Max)<1e5) 
+
+    if(abs(limits.X.Max)<1e5)
         asStr=lessetB::formatNumber(std::format("{: .2f}",limits.X.Max), options,true,true);
-    else 
+    else
         asStr=lessetB::formatNumber(std::format("{: .5}",limits.X.Max), options,true,true);
 
     ImPlot::PlotText(asStr.c_str(),limits.X.Max,limits.Y.Min+abs(limits.Y.Max-limits.Y.Min)/2,ImVec2((-ImGui::CalcTextSize(asStr.c_str()).x/2-5)*(-1+!(ImPlot::GetCurrentPlot()->Axes[0].Flags&ImPlotAxisFlags_Invert)*2),0),textSpec);
-    
-    if(abs(limits.X.Min)<1e5) 
+
+    if(abs(limits.X.Min)<1e5)
         asStr=lessetB::formatNumber(std::format("{: .2f}",limits.X.Min), options,true,true);
-    else 
+    else
         asStr=lessetB::formatNumber(std::format("{: .5}",limits.X.Min), options,true,true);
     ImPlot::PlotText(asStr.c_str(),limits.X.Min,limits.Y.Min+abs(limits.Y.Max-limits.Y.Min)/2,ImVec2((ImGui::CalcTextSize(asStr.c_str()).x/2+5)*(-1+!(ImPlot::GetCurrentPlot()->Axes[0].Flags&ImPlotAxisFlags_Invert)*2),0),textSpec);
-    
-    if(abs(limits.Y.Min)<1e5) 
+
+    if(abs(limits.Y.Min)<1e5)
         asStr=lessetB::formatNumber(std::format("{: .2f}",limits.Y.Min), options,true,true);
-    else 
+    else
         asStr=lessetB::formatNumber(std::format("{: .5}",limits.Y.Min), options,true,true);
     ImPlot::PlotText(asStr.c_str(),limits.X.Min+abs(limits.X.Max-limits.X.Min)/2,limits.Y.Min,ImVec2(0,-15*(-1+!(ImPlot::GetCurrentPlot()->Axes[3].Flags&ImPlotAxisFlags_Invert)*2)),textSpec);
-    
-    if(abs(limits.Y.Max)<1e5) 
+
+    if(abs(limits.Y.Max)<1e5)
         asStr=lessetB::formatNumber(std::format("{: .2f}",limits.Y.Max), options,true,true);
-    else 
+    else
         asStr=lessetB::formatNumber(std::format("{: .5}",limits.Y.Max), options,true,true);
     ImPlot::PlotText(asStr.c_str(),limits.X.Min+abs(limits.X.Max-limits.X.Min)/2,limits.Y.Max,ImVec2(0,15*(-1+!(ImPlot::GetCurrentPlot()->Axes[3].Flags&ImPlotAxisFlags_Invert)*2)),textSpec);
 }
@@ -3251,7 +3248,7 @@ void displayLimitsUI(const ImPlotRect& limits, lessetB::Options &options)
 bool ImVec4Equal(const ImVec4 &a, const ImVec4 &b, bool cmpAlpha)
 {
     return a.x==b.x && a.y==b.y && a.z==b.z && (cmpAlpha ? a.w==b.w : true);
-} 
+}
 
 std::string removeSpaces(std::string s)
 {
@@ -3262,10 +3259,10 @@ std::string removeSpaces(std::string s)
     return s;
 }
 
-void replaceWithUnicode(std::string &input, 
-                        const std::unordered_map<std::string, lessetB::tokenType> &symbols, 
+void replaceWithUnicode(std::string &input,
+                        const std::unordered_map<std::string, lessetB::tokenType> &symbols,
                         const std::unordered_map<std::string, lessetB::tokenType> &multiArgFunctions,
-                        const lessetB::CustomSymbols &customSymbols) 
+                        const lessetB::CustomSymbols &customSymbols)
 {
     std::string candidate;
     for (size_t i{}; i < input.length(); i++)
@@ -3277,14 +3274,14 @@ void replaceWithUnicode(std::string &input,
             {
                 if(j>input.length()-1) j=input.length()-i;
                 candidate=input.substr(i,j);
-                if(symbols.find(candidate)!=symbols.end() || 
+                if(symbols.find(candidate)!=symbols.end() ||
                    customSymbols.m_variables.find(candidate)!=customSymbols.m_variables.end() ||
                    customSymbols.m_operations.find(candidate)!=customSymbols.m_operations.end() ||
                    multiArgFunctions.find(candidate)!=multiArgFunctions.end())
                 {
                     if(multiArgFunctions.find(candidate)!=multiArgFunctions.end())
                     {
-                        if((i+candidate.length()+1<input.length() && input.at(i+candidate.length()+1)=='(')) 
+                        if((i+candidate.length()+1<input.length() && input.at(i+candidate.length()+1)=='('))
                         {
                             i+=candidate.length();
                             break;
@@ -3297,19 +3294,14 @@ void replaceWithUnicode(std::string &input,
                 }
             }
         }
-        if(lessetB::globals::asciiToUnicode.find(candidate) != lessetB::globals::asciiToUnicode.end()) 
+        if(lessetB::globals::asciiToUnicode.find(candidate) != lessetB::globals::asciiToUnicode.end())
             input.replace(i,candidate.length(),lessetB::globals::asciiToUnicode.at(candidate));
     }
 }
 
 bool isPartOfHexValue(const std::string &str)
 {
-    for(char c : str)
-    {
-        if(c>='0' && c<='F' && !(c>'9' && c<'A')) continue;
-        return false;
-    }
-    return true;
+    return std::all_of(str.begin(),str.end(),[](char c){return c>='0' && c<='F' && !(c>'9' && c<'A');});
 }
 
 bool convertHexToByte(const std::string &str, char8_t &byte)
@@ -3347,8 +3339,8 @@ requires std::is_arithmetic_v<T>
 };
 
 
-void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &options, std::vector<Instance> &instances, bool &recalculateGraphs, 
-                  size_t &currInst, std::string &filePath, bool restricted, bool writeOutput)
+void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &options, std::vector<Instance> &instances, bool &recalculateGraphs,
+                  size_t &currInst,const std::string &filePath, bool restricted, bool writeOutput)
 {
     size_t colorsOffset=graphEquations.size();
     std::string nothing;
@@ -3376,7 +3368,7 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                 if(std::isspace(currLine.at(i))) currLine.erase(i--, 1);
             }
 
-            if(currLine.find("let") == 0 && currLine.find('=') != std::string::npos && !restricted && (!skip || conditionTrue == true))
+            if(currLine.starts_with("let") && currLine.contains('=') && !restricted && (!skip || conditionTrue == true))
             {
                 std::string name = currLine.substr(3, currLine.find('=') - 3);
                 if(name.length() > MAX_KEYWORD_LENGTH)
@@ -3447,9 +3439,9 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                 continue;
             }
 
-            if(currLine.find("color") == 0 && (!skip || conditionTrue == true))
+            if(currLine.find("color") == 0 && (!skip || conditionTrue))
             {
-                if(currLine.find("=")!=std::string::npos && currLine.find("#")!=std::string::npos && currLine.find("#")>currLine.find("="))
+                if(currLine.contains("=") && currLine.contains("#") && currLine.find("#")>currLine.find("="))
                 {
                     std::string indexStr = currLine.substr(5,currLine.find("=")-5);
                     try
@@ -3480,12 +3472,12 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
 
                                     }
                                 }
-                            
+
 
                             }
                             graphEquations.at(index).col=ImVec4ScalarDiv(newCol,255.f);
                             if(writeOutput) instances[currInst].lastScriptOutput +="\n";
-                            
+
                         }
 
                     }
@@ -3496,7 +3488,7 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                 }
                 continue;
             }
-            if(currLine.find("op") == 0 && (!skip || conditionTrue == true))
+            if(currLine.find("op") == 0 && (!skip || conditionTrue))
             {
                 std::string opSig = currLine.substr(2, currLine.find('=') - 2);
                 bool hasLparen{};
@@ -3507,7 +3499,7 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                 size_t commaCount{};
                 for(char c : opSig)
                 {
-                    if(opSig.find('=') != std::string::npos)
+                    if(opSig.contains('='))
                     {
                         if(writeOutput) instances[currInst].lastScriptOutput += "Operator definition failed, bad signature.\n";
                         failed = true;
@@ -3569,7 +3561,7 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                     if(writeOutput) instances[currInst].lastScriptOutput += "Operator definition failed, names cannot be longer than 33 characters.\n";
                     continue;
                 }
-                
+
                 for(size_t i{}; i < opName.length(); i++)
                 {
                     if(!lessetB::isValidName(opName) || i >= MAX_KEYWORD_LENGTH)
@@ -3583,7 +3575,7 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                 std::string attributesStr = currLine.substr(currLine.find('['),currLine.find(']')-currLine.find('['));
                 lessetB::operatorAttributes attributes{};
                 size_t precedence{};
-                if(attributesStr.find(',')==std::string::npos || attributesStr.length()<4)
+                if(!attributesStr.contains(',') || attributesStr.length()<4)
                 {
                     if(writeOutput) instances[currInst].lastScriptOutput += "Operator definition failed, bad signature.\n";
                     continue;
@@ -3595,10 +3587,10 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                     }
                     if(attributesStr[1]-'0'>1)
                     {
-                        if(argNames.find(',')==std::string::npos) attributes=attributes|lessetB::operatorAttributes::U_POSTFIX;
-                        
+                        if(!argNames.contains(',')) attributes=attributes|lessetB::operatorAttributes::U_POSTFIX;
+
                     }
-                    else if(argNames.find(',')==std::string::npos) attributes=attributes|lessetB::operatorAttributes::U_PREFIX;
+                    else if(!argNames.contains(',')) attributes=attributes|lessetB::operatorAttributes::U_PREFIX;
                     std::string precedenceStr=attributesStr.substr(attributesStr.find(',')+1);
 
                     std::from_chars(precedenceStr.data(), precedenceStr.data() + precedenceStr.length(), precedence);
@@ -3609,7 +3601,7 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                     }
                     precedence+=3;
                 }
-                std::string opDef = currLine.substr(currLine.find('=')+1); 
+                std::string opDef = currLine.substr(currLine.find('=')+1);
                 auto err = getOperationFromArgs(opSig, opDef, static_cast<lessetB::pass>(precedence), attributes, instances[currInst]);
                 if(std::to_underlying(err) && writeOutput)
                 {
@@ -3624,14 +3616,14 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                         default: instances[currInst].lastScriptOutput += "what\n"; break;
                     }
                 }
-                else 
+                else
                 {
                     instances[currInst].lastScriptOutput += "Defined operator  \"" + opName + "\" = " + opDef+"\n";
                 }
                 continue;
 
             }
-            if(currLine.find("fn") == 0 && (!skip || conditionTrue == true))
+            if(currLine.find("fn") == 0 && (!skip || conditionTrue))
             {
                 std::string fnSig = currLine.substr(2, currLine.find('=') - 2);
                 bool hasLparen{};
@@ -3749,7 +3741,7 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                 conditionTrue = false;
             }
 
-            if(currLine.find("jump") == 0 && (!skip || conditionTrue == true) && !restricted)
+            if(currLine.find("jump") == 0 && (!skip || conditionTrue) && !restricted)
             {
                 std::string jumpEquation = currLine.substr(4);
                 if(jumpEquation != "")
@@ -3787,7 +3779,7 @@ void runScript(std::vector<GraphEquation> &graphEquations, lessetB::Options &opt
                 }
             }
 
-            if(!skip || conditionTrue == true && !restricted && writeOutput) // Calculating kinda useless if the output is discarded anyway
+            if(!skip || conditionTrue && !restricted && writeOutput) // Calculating kinda useless if the output is discarded anyway
             {
                 if(writeOutput)
                     evaluateEquation(options, true, true, currLine, nothing, instances[currInst].lastScriptOutput,
@@ -3868,7 +3860,7 @@ void displayOperatorsHelpMenu(std::string &equation, std::unordered_map<std::str
     if(ImGui::MenuItem("(expr)")) equation.append("()");
     ImGui::SetItemTooltip("Parentheses.");
 
-    if(lessetB::globals::userOperations.size()>0) ImGui::Separator();
+    if(operationContainer.size()>0) ImGui::Separator();
     for(auto op :operationContainer)
     {
         if(ImGui::MenuItem(op.first.c_str())) equation.append(op.second.m_def);
@@ -3882,22 +3874,24 @@ void displayOperatorsHelpMenu(std::string &equation, std::unordered_map<std::str
             }
         }
 
+        // A {associativity}-associative {prefix/postfix/""}{binary/unary} operator with precedence {nameOfPrecedence} of {argNames(has trailing comma and space)} returns {def}
         std::string tooltip = std::format("A {}-associative {}{} operator with precedence {} of {}returns {}",
                                             op.second.m_info & lessetB::R_ASSOCIATIVE ? "right" : "left",
                                             op.second.m_info & lessetB::BINARY ? "" : (op.second.m_info & lessetB::U_PREFIX ? "prefix " : "postfix "),
                                             op.second.m_info & lessetB::BINARY ? "binary" : "unary",
-                                            getPriorityName(op.second.m_precedence).c_str(),
+                                            getPriorityName(op.second.m_precedence),
                                             argNames,
                                             op.second.m_def
                                             );
         ImGui::SetItemTooltip("%s",tooltip.c_str());
-        // ImGui::SetItemTooltip("%s, Evaluated on pass %s, takes %d argument%s, is %s-associative%s", 
-        //                       op.second.m_def.c_str(),
-        //                       getPriorityName(op.second.m_precedence).c_str(), 
-        //                       (op.second.m_info & lessetB::BINARY) + 1,
-        //                       op.second.m_info & lessetB::BINARY ? "s" : "",
-        //                       op.second.m_info & lessetB::R_ASSOCIATIVE ? "right" : "left",
-        //                       op.second.m_info & lessetB::BINARY ? "" : (op.second.m_info & lessetB::U_PREFIX ? "Prefix" : "Postfix"));
+        // ImGui::SetItemTooltip("A %s-associative %s%s operator with precedence %s of %sreturns %s",
+        //     op.second.m_info & lessetB::R_ASSOCIATIVE ? "right" : "left",
+        //     op.second.m_info & lessetB::BINARY ? "" : (op.second.m_info & lessetB::U_PREFIX ? "prefix " : "postfix "),
+        //     op.second.m_info & lessetB::BINARY ? "binary" : "unary",
+        //     getPriorityName(op.second.m_precedence).c_str(),
+        //     argNames.c_str(),
+        //     op.second.m_def.c_str()
+        // );
     }
 
     ImGui::EndMenu();
@@ -3962,7 +3956,7 @@ void toCopyButtonEachLine(std::string &resultHistory, size_t width)
     }
 }
 
-[[nodiscard]] size_t calcMaxLineButtonWidth(std::string &str)
+[[nodiscard]] size_t calcMaxLineButtonWidth(const std::string &str)
 {
     std::string line;
 
@@ -4216,7 +4210,7 @@ void graphsMenuTopBarUI(bool &showGraphingMenuHint, std::vector<GraphEquation> &
     }
 }
 #ifdef LESSET_INCLUDE_DEBUG
-void debugMenu(std::vector<GraphEquation> &graphEquations, std::vector<Instance> &instances, size_t &currInst, const std::pair<std::vector<std::vector<double>>,std::vector<std::vector<double>>> &graphsPoints)
+void debugMenu(std::vector<GraphEquation> &graphEquations, std::vector<Instance> &instances, size_t &currInst, const std::pair<std::vector<std::vector<double>>,std::vector<std::vector<double>>> &graphsPoints, size_t activeEquationsSize)
 {
     const auto &io = ImGui::GetIO();
     ImGui::SliderInt("Graphing Precision##",&g_maxIndividualGraphPointsMultiplier,1,10);
@@ -4256,6 +4250,7 @@ void debugMenu(std::vector<GraphEquation> &graphEquations, std::vector<Instance>
         }
         i++;
     }
+    ImGui::Text("Active: %zu",activeEquationsSize);
 
     ImGui::EndMenu();
 }
@@ -4449,7 +4444,7 @@ ImPlotPoint markPoints(const std::vector<GraphEquation> &graphEquations, const s
             hasShownPoint = true;
             if(abs(mousePos.y - graphsPoints.second.at(eqIndex).at(i)) < (limits.Y.Max - limits.Y.Min) / 5)
             {
-                
+
                 ImPlot::PlotScatter("##", &graphsPoints.second.at(eqIndex).at(i), 1, 0, graphsPoints.first.at(eqIndex).at(i), pointsSpec);
                 if(abs(mousePos.y - graphsPoints.second.at(eqIndex).at(i)) < (limits.Y.Max - limits.Y.Min) / 20 &&
                     !hasShownMousePointText)
@@ -4479,8 +4474,6 @@ ImPlotPoint markPoints(const std::vector<GraphEquation> &graphEquations, const s
                 if(abs(mousePos.x - graphsPoints.first.at(eqIndex).at(i)) < (limits.X.Max - limits.X.Min) / 10 &&
                     abs(mousePos.y - graphsPoints.second.at(eqIndex).at(i)) < (limits.Y.Max - limits.Y.Min) / 10)
                 {
-                    std::string coordsFormatted = formatCoords(graphEquations[eqIndex], graphsPoints.first.at(eqIndex).at(i), graphsPoints.second.at(eqIndex).at(i), options);
-                    
                     double distance = distanceBetweenTwo(ImPlotPoint(graphsPoints.first[eqIndex][i],graphsPoints.second[eqIndex][i]), mousePos);
                     double oldDistance = distanceBetweenTwo(ImPlotPoint(closestSpecialPointToCursor.x,closestSpecialPointToCursor.y), mousePos);
                     assert((oldDistance>=0 || oldDistance!=oldDistance) && distance>=0);
@@ -4491,7 +4484,7 @@ ImPlotPoint markPoints(const std::vector<GraphEquation> &graphEquations, const s
                         closestSpecialPointToCursor.x=graphsPoints.first[eqIndex][i];
                         closestSpecialPointToCursor.y=graphsPoints.second[eqIndex][i];
                     }
-                    
+
                 }
             }
         }

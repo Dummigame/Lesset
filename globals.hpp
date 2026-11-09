@@ -9,7 +9,7 @@ namespace globals
 
     inline std::unordered_map<std::string,std::string> userVariables;
 
-    inline std::pair<std::vector<double>,std::vector<double>> points; 
+    inline std::pair<std::vector<double>,std::vector<double>> points;
 
     inline std::string ans;
     inline std::string errorMessage;
@@ -30,7 +30,7 @@ namespace globals
     std::atomic<int> activeRecursions{};
 
     inline std::unordered_map<std::string, std::vector<lessetB::Token>> tokenMemory;
-    
+
     const std::unordered_map<std::string, lessetB::tokenType> symbols
     {
         {"<<",    lessetB::tokenType::BINARYOP},
@@ -308,7 +308,7 @@ namespace globals
         {"rnd", "rnd"}, // These are replaced later
         {"rndint","rndint"},
     };
-    
+
     const std::unordered_map<std::string, std::string> nonNumericalConstants
     {
     {"ans" , "ans"},
@@ -408,7 +408,7 @@ namespace globals
         {"true","true"},
         {"false","false"},
     };
-    
+
 
     size_t threadCount{std::thread::hardware_concurrency()};
 
@@ -445,7 +445,7 @@ namespace globals
         {"AND",    lessetB::LOGIC1},
         {"XOR",    lessetB::LOGIC2},
         {"OR",    lessetB::LOGIC3},
-        
+
         {">=",    lessetB::COMPARISONS1},
         {"<=",    lessetB::COMPARISONS1},
         {"!", lessetB::UNARY_OPS},
@@ -506,7 +506,7 @@ namespace globals
         SECH=48,
         CSCH=49,
         COTH=50,
-        
+
         ASEC=51,
         ACSC=52,
         ACOT=53,
@@ -588,7 +588,9 @@ namespace globals
 
     };
 
-    
+    inline std::random_device randev;
+    inline std::mt19937 randomMt(randev());
+
     using enum idToOp;
     const std::unordered_map<std::string, idToOp> opToID
     {
@@ -721,12 +723,12 @@ namespace globals
         {"asech^2", ASECH_SQUARED},
         {"acsch^2", ACSCH_SQUARED}, //aschhschhshuhuschush^2
         {"acoth^2", ACOTH_SQUARED},
-    
+
         {"Re", REAL},
-        {"Im", IMAG},  
+        {"Im", IMAG},
         {"real", REAL},
-        {"imag", IMAG},    
-        {"arg", ARG},  
+        {"imag", IMAG},
+        {"arg", ARG},
         {"norm",NORM},
         {"conj",CONJ},
         {"proj",PROJ},
@@ -735,7 +737,7 @@ namespace globals
         {"cas",CAS},
         {"cas^2",CAS_SQUARED},
         {"//",FLOOR_DIV},
-        // {"polar",101}  
+        // {"polar",101}
 
     };
 

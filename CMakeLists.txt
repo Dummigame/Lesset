@@ -9,8 +9,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 set(CMAKE_CXX_STANDARD 26)
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DVK_PROTOTYPES --undefine-macro=LESSET_INCLUDE_DEBUG -O3")
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_PROTOTYPES -freflection --undefine-macro=LESSET_INCLUDE_DEBUG -O3")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DVK_PROTOTYPES --define-macro=LESSET_INCLUDE_DEBUG")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_PROTOTYPES -freflection --define-macro=LESSET_INCLUDE_DEBUG")
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
 include(FetchContent)
 

@@ -102,7 +102,7 @@ inline void displayTrigHelpMenu(std::string &equation, int &tooltipRnd)
     if(ImGui::IsItemHovered())
     {
         std::uniform_int_distribution<> intDist(0, 1000);
-        if(tooltipRnd == 0) tooltipRnd = intDist(lessetB::randomMt);
+        if(tooltipRnd == 0) tooltipRnd = intDist(lessetB::globals::randomMt);
         if(tooltipRnd != 1000) ImGui::SetItemTooltip("cis(x) = cos(x)+isin(x) = e^(ix).");
         else ImGui::SetItemTooltip("Something I'm not.");
     }
@@ -350,7 +350,7 @@ inline void displayLogicHelpMenu(std::string &equation)
         ImGui::EndMenu();
     }
     if(ImGui::BeginMenu("Logic"))
-    {    
+    {
         if(ImGui::MenuItem("¬")) equation.append("¬");
         ImGui::SetItemTooltip("Logical not, returns true if operand is false. (NOT)");
 
@@ -364,7 +364,7 @@ inline void displayLogicHelpMenu(std::string &equation)
         ImGui::SetItemTooltip("Logical exclusive or, returns true if one side is true. (XOR)");
         ImGui::EndMenu();
     }
-    
+
     if(ImGui::BeginMenu("Bitwise"))
     {
         if(ImGui::MenuItem("<<")) equation.append("<<");
